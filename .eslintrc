@@ -1,0 +1,9 @@
+{
+  "parser": "babel-eslint",
+  "extends": "airbnb",
+  "plugins": ["async-await"],
+  "rules": {
+    "strict": 0,
+    "comma-dangle": ["error", "never"]
+  }
+}
