@@ -1,16 +1,19 @@
 const r = require('rethinkdb');
 const Database = require('./Database');
+const ModelCursor = require('./ModelCursor.js');
 const { RQL_METHODS } = require('./util');
 
 const stack = Symbol('stack');
 const model = Symbol('model');
+const methods = Symbol('methods');
 
 const { hasOwnProperty } = Object.prototype;
 
 class Query {
-  constructor(Model, newStack = []) {
+  constructor(Model, lastStack = [], lastMethods = []) {
     this[model] = Model;
-    this[stack] = newStack;
+    this[stack] = lastStack;
+    this[methods] = lastMethods;
   }
 
   toQuery() {
@@ -25,13 +28,19 @@ class Query {
   }
 
   async processResponse(response) {
-    // Cursor check -- probably a better way to check for this
-    if (typeof response.next === 'function') {
-      const records = await response.toArray();
-      return records.map(record => new this[model](record));
-    // Single record returned `get` call
-    } else if (hasOwnProperty.call(response, 'id')) {
+    const methodList = this[methods];
+    // Single record returned - `get` call
+    if (hasOwnProperty.call(response, 'id')) {
       return new this[model](response);
+    // Cursor check -- probably a better way to check for this
+    } else if (typeof response.next === 'function') {
+      // Changefeed
+      if (methodList[methodList.length - 1] === 'changes') {
+        return new ModelCursor(this[model], response);
+      } else {
+        const records = await response.toArray();
+        return records.map(record => new this[model](record));
+      }
     }
 
     // insert, update, delete
@@ -42,7 +51,8 @@ class Query {
 RQL_METHODS.forEach((method) => {
   Query.prototype[method] = function rqlChain(...args) {
     this[stack].push(query => query[method](...args));
-    return new this.constructor(this[model], this[stack].slice(0));
+    this[methods].push(method);
+    return new this.constructor(this[model], this[stack].slice(0), this[methods].slice(0));
   };
 });
 

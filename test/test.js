@@ -1,8 +1,7 @@
 import test from 'ava';
 import { Database, Model } from '../src';
 
-class TestUser extends Model {
-}
+class TestUser extends Model {}
 
 TestUser.schema = {
   name: String,
@@ -18,14 +17,10 @@ test.before(async () => {
   await Database.connect();
 });
 
-test.after.always('guaranteed cleanup', async () => {
-  await Database.teardown();
-});
-
 test('Saving a new model instance adds an id to the instance', async (t) => {
   const user = new TestUser({
-    name: 'Ralph',
-    email: 'foo@bar.com'
+    name: 'Crono',
+    email: 'crono@theendoftime.com'
   });
   const returnedUser = await user.save();
 
@@ -35,23 +30,66 @@ test('Saving a new model instance adds an id to the instance', async (t) => {
 
 test('Queries return instances of models', async (t) => {
   const [user] = await TestUser.filter({
-    email: 'foo@bar.com'
+    email: 'crono@theendoftime.com'
   }).run();
 
   t.true(user instanceof TestUser);
-  t.is(user.name, 'Ralph');
-  t.is(user.email, 'foo@bar.com');
+  t.is(user.name, 'Crono');
+  t.is(user.email, 'crono@theendoftime.com');
 });
 
 test('Saving an existing model updates its correctly', async (t) => {
   const [user] = await TestUser.filter({
-    email: 'foo@bar.com'
+    email: 'crono@theendoftime.com'
   }).run();
-  user.email = 'baz@bar.com';
+  user.email = 'frog@theendoftime.com';
   await user.save();
 
   const [updatedUser] = await TestUser.filter({
-    email: 'baz@bar.com'
+    email: 'frog@theendoftime.com'
   }).run();
-  t.is(updatedUser.email, 'baz@bar.com');
+  t.is(updatedUser.email, 'frog@theendoftime.com');
+});
+
+test('Changefeeds return instances of models', async (t) => {
+  const cursor = await TestUser.changes().run();
+  await new Promise((resolve) => {
+    cursor.each((change) => {
+      t.true(change.new_val instanceof TestUser);
+      resolve();
+    });
+
+    const user = new TestUser({
+      name: 'Marle',
+      email: 'marle@thendoftime.com'
+    });
+    user.save();
+  });
+  await cursor.close();
+});
+
+test('Changefeeds `diff` correctly', async (t) => {
+  let count = 0;
+  const cursor = await TestUser.changes().run();
+  await new Promise(async (resolve) => {
+    const user = new TestUser({
+      name: 'Marle',
+      email: 'marle@thendoftime.com'
+    });
+
+    cursor.each((change) => {
+      if (count === 1) {
+        const diff = change.diff();
+        t.is(user.id, diff.id);
+        t.is(user.email, diff.email);
+        resolve();
+      }
+      count += 1;
+    });
+
+    await user.save();
+    user.email = 'marle@fiendlordskeep.com';
+    await user.save();
+  });
+  await cursor.close();
 });

@@ -5,7 +5,7 @@ const DEFAULT_RETHINKDB_DB = 'test';
 const isTesting = process.env.NODE_ENV === 'test';
 
 class Database {
-  static async config({ host, port, db }) {
+  static config({ host, port, db }) {
     this.host = host || 'localhost';
     this.port = port || DEFAULT_RETHINKDB_PORT;
     this.db = db || DEFAULT_RETHINKDB_DB;
