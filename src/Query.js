@@ -43,7 +43,7 @@ class Query {
       }
     }
 
-    // insert, update, delete
+    // insert, update, delete, replace
     return response;
   }
 }

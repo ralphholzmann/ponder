@@ -88,9 +88,21 @@ class Model {
   }
 }
 
-Model.setup = function modelSetup(tableList) {
+Model.setup = async function modelSetup(tableList) {
   const query = new Query(this);
-  return !tableList.includes(this.name) && query.tableCreate(this.name).run();
+  if (!tableList.includes(this.name)) {
+    await query.tableCreate(this.name).run();
+  }
+
+  if (this.indexes) {
+    const indexList = await (new Query(this)).indexList().run();
+    for (let [indexName, definition] of Object.entries(this.indexes)) {
+      if (!indexList.includes(indexName)) {
+        const query = new Query(this);
+        query.indexCreate();
+      }
+    }
+  }
 };
 
 RQL_METHODS.forEach((method) => {

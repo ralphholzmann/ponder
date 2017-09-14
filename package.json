@@ -9,7 +9,8 @@
     "test": "cross-env NODE_ENV='test' ava --serial"
   },
   "dependencies": {
-    "rethinkdb": "^2.3.3"
+    "rethinkdb": "^2.3.3",
+    "thinky": "^2.3.8"
   },
   "devDependencies": {
     "ava": "^0.19.1",
