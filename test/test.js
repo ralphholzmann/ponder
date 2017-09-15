@@ -6,19 +6,19 @@ class Character extends Model {
     name: String,
     email: String
   }
-}
 
-Character.indexes = {
-  'name': true,
-  'name_email': ['name', 'email']
+  static indexes = {
+    name: true,
+    name_email: ['name', 'email']
+  };
+
+  static relations = [{
+    model: 'Weapon',
+    relationship: 'hasMany',
+    primaryKey: 'id',
+    foreignKey: 'characterId'
+  }];
 };
-
-Character.relations = [{
-  model: 'Weapon',
-  relationship: 'hasMany',
-  primaryKey: 'id',
-  foreignKey: 'characterId'
-}];
 
 Database.register(Character);
 
