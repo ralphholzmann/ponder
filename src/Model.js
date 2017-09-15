@@ -96,23 +96,24 @@ Model.setup = async function modelSetup(tableList) {
   }
 
   if (this.indexes) {
-    const indexList = await (new Query(this)).indexList().run();
+    const indexList = await this.indexList().run();
     for (let [indexName, definition] of Object.entries(this.indexes)) {
       if (!indexList.includes(indexName)) {
-        const query = new Query(this);
-
         // Simple index
         if (definition === true) {
           if (has(this.schema, indexName)) {
-            await query.indexCreate(indexName, selectRow(indexName)).run();
+            await this.indexCreate(indexName, selectRow(indexName)).run();
           } else {
             throw new Error(`Unable to create simple index "${indexName}" on Model ${this.name} because that property does not exist on the Model's schema.`);
           }
         // Compound index
         } else if (Array.isArray(definition)) {
           definition.forEach(property => {
-
+            if (!has(this.schema, property)) {
+              throw new Error(`Unable to create compound index "${indexName}" on Model ${this.name} because property '${property}' does not exist on the Model's schema.`);
+            }
           });
+          await this.indexCreate(indexName, definition.map(selectRow)).run();
         }
       }
     }

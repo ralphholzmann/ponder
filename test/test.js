@@ -5,14 +5,12 @@ class TestUser extends Model {}
 
 TestUser.schema = {
   name: String,
-  email: String,
-  age: Number,
-  tags: [String]
+  email: String
 };
 
 TestUser.indexes = {
   'name': true,
-  'name_age': ['name', 'age'],
+  'name_email': ['name', 'email']
 };
 
 Database.register(TestUser);
@@ -45,7 +43,7 @@ test('Queries return instances of models', async (t) => {
   t.is(user.email, 'crono@theendoftime.com');
 });
 
-test('Saving an existing model updates its correctly', async (t) => {
+test('Saving an existing model updates correctly', async (t) => {
   const [user] = await TestUser.filter({
     email: 'crono@theendoftime.com'
   }).run();
@@ -56,6 +54,24 @@ test('Saving an existing model updates its correctly', async (t) => {
     email: 'frog@theendoftime.com'
   }).run();
   t.is(updatedUser.email, 'frog@theendoftime.com');
+});
+
+test('simple indexes are created successfully', async (t) => {
+  const [user] = await TestUser.getAll('Crono', {
+    index: 'name'
+  }).run();
+  t.true(user instanceof TestUser);
+  t.is(user.name, 'Crono');
+  t.is(user.email, 'frog@theendoftime.com');
+});
+
+test('compound indexes are created successfully', async (t) => {
+  const [user] = await TestUser.getAll(['Crono', 'frog@theendoftime.com'], {
+    index: 'name_email'
+  }).run();
+  t.true(user instanceof TestUser);
+  t.is(user.name, 'Crono');
+  t.is(user.email, 'frog@theendoftime.com');
 });
 
 test('Changefeeds return instances of models', async (t) => {

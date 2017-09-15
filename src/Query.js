@@ -28,12 +28,14 @@ class Query {
   }
 
   async processResponse(response) {
+    const isArrayResult = Array.isArray(response) && typeof response.toArray === 'function'; 
     const methodList = this[methods];
+
     // Single record returned - `get` call
     if (hasOwnProperty.call(response, 'id')) {
       return new this[model](response);
     // Cursor check -- probably a better way to check for this
-    } else if (typeof response.next === 'function') {
+    } else if (typeof response.next === 'function' && !isArrayResult) {
       // Changefeed
       if (methodList[methodList.length - 1] === 'changes') {
         return new ModelCursor(this[model], response);
@@ -49,7 +51,7 @@ class Query {
 }
 
 RQL_METHODS.forEach((method) => {
-  Query.prototype[method] = function rqlChain(...args) {
+  Query.prototype[method] = function reqlChain(...args) {
     this[stack].push(query => query[method](...args));
     this[methods].push(method);
     return new this.constructor(this[model], this[stack].slice(0), this[methods].slice(0));
