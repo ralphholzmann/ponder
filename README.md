@@ -10,14 +10,14 @@ Needs a locally running instance of rethinkdb for tests.
 - [ ] Setup
     - [x] Create database
     - [x] Create tables
-    - [ ] Ensure indexes
-        - [ ] Single
-        - [ ] Compound
+    - [x] Ensure indexes
+        - [x] Single
+        - [x] Compound
         - [ ] Multi
         - [ ] Geo
 - [ ] Schema
     - [x] Type validation
-    - [ ] Define indexes
+    - [x] Define indexes
     - [ ] Define relations without race conditions
 - [ ] Models
     - [x] ReQL proxying
@@ -30,9 +30,9 @@ Needs a locally running instance of rethinkdb for tests.
     - [ ] Deleting
     - [ ] Unique properties via lookup table
     - [ ] Pre/Post hooks
-- [ ] Cursors
+- [x] Cursors
     - [x] Return model instances
-- [ ] Changefeeds
+- [x] Changefeeds
     - [x] Emit model instances
     - [x] Automatic diffing with `id`
-    - [ ] Ability to get old value
+    - [x] Ability to get old value

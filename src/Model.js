@@ -117,6 +117,7 @@ Model.setup = async function modelSetup(tableList) {
         }
       }
     }
+    await this.indexWait().run();
   }
 };
 

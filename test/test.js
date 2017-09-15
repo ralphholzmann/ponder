@@ -1,19 +1,23 @@
 import test from 'ava';
 import { Database, Model } from '../src';
 
-class TestUser extends Model {}
+class Character extends Model {}
 
-TestUser.schema = {
+Character.schema = {
   name: String,
   email: String
 };
 
-TestUser.indexes = {
+Character.indexes = {
   'name': true,
   'name_email': ['name', 'email']
 };
 
-Database.register(TestUser);
+Character.relations = [{
+  model: ''
+}]
+
+Database.register(Character);
 
 test.before(async () => {
   Database.config({
