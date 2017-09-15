@@ -9,19 +9,20 @@
     "test": "cross-env NODE_ENV='test' ava --serial"
   },
   "dependencies": {
-    "rethinkdb": "^2.3.3",
-    "thinky": "^2.3.8"
+    "rethinkdb": "^2.3.3"
   },
   "devDependencies": {
-    "ava": "^0.19.1",
+    "ava": "^0.22.0",
     "babel-eslint": "^7.2.3",
+    "babel-plugin-transform-class-properties": "^6.24.1",
     "cross-env": "^5.0.0",
     "eslint": "^3.19.0",
     "eslint-config-airbnb": "^15.0.1",
     "eslint-plugin-async-await": "0.0.0",
     "eslint-plugin-import": "^2.3.0",
     "eslint-plugin-jsx-a11y": "^5.0.3",
-    "eslint-plugin-react": "^7.0.1"
+    "eslint-plugin-react": "^7.0.1",
+    "thinky": "^2.3.8"
   },
   "ava": {
     "files": [
@@ -29,6 +30,14 @@
     ],
     "source": [
       "src/*.js"
-    ]
+    ],
+    "babel": {
+      "presets": [
+        "@ava/stage-4"
+      ],
+      "plugins": [
+        "transform-class-properties"
+      ]
+    }
   }
 }

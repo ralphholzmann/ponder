@@ -1,12 +1,12 @@
 import test from 'ava';
 import { Database, Model } from '../src';
 
-class Character extends Model {}
-
-Character.schema = {
-  name: String,
-  email: String
-};
+class Character extends Model {
+  static schema = {
+    name: String,
+    email: String
+  }
+}
 
 Character.indexes = {
   'name': true,
@@ -14,8 +14,11 @@ Character.indexes = {
 };
 
 Character.relations = [{
-  model: ''
-}]
+  model: 'Weapon',
+  relationship: 'hasMany',
+  primaryKey: 'id',
+  foreignKey: 'characterId'
+}];
 
 Database.register(Character);
 
@@ -27,7 +30,7 @@ test.before(async () => {
 });
 
 test('Saving a new model instance adds an id to the instance', async (t) => {
-  const user = new TestUser({
+  const user = new Character({
     name: 'Crono',
     email: 'crono@theendoftime.com'
   });
@@ -38,55 +41,55 @@ test('Saving a new model instance adds an id to the instance', async (t) => {
 });
 
 test('Queries return instances of models', async (t) => {
-  const [user] = await TestUser.filter({
+  const [user] = await Character.filter({
     email: 'crono@theendoftime.com'
   }).run();
 
-  t.true(user instanceof TestUser);
+  t.true(user instanceof Character);
   t.is(user.name, 'Crono');
   t.is(user.email, 'crono@theendoftime.com');
 });
 
 test('Saving an existing model updates correctly', async (t) => {
-  const [user] = await TestUser.filter({
+  const [user] = await Character.filter({
     email: 'crono@theendoftime.com'
   }).run();
   user.email = 'frog@theendoftime.com';
   await user.save();
 
-  const [updatedUser] = await TestUser.filter({
+  const [updatedUser] = await Character.filter({
     email: 'frog@theendoftime.com'
   }).run();
   t.is(updatedUser.email, 'frog@theendoftime.com');
 });
 
 test('simple indexes are created successfully', async (t) => {
-  const [user] = await TestUser.getAll('Crono', {
+  const [user] = await Character.getAll('Crono', {
     index: 'name'
   }).run();
-  t.true(user instanceof TestUser);
+  t.true(user instanceof Character);
   t.is(user.name, 'Crono');
   t.is(user.email, 'frog@theendoftime.com');
 });
 
 test('compound indexes are created successfully', async (t) => {
-  const [user] = await TestUser.getAll(['Crono', 'frog@theendoftime.com'], {
+  const [user] = await Character.getAll(['Crono', 'frog@theendoftime.com'], {
     index: 'name_email'
   }).run();
-  t.true(user instanceof TestUser);
+  t.true(user instanceof Character);
   t.is(user.name, 'Crono');
   t.is(user.email, 'frog@theendoftime.com');
 });
 
 test('Changefeeds return instances of models', async (t) => {
-  const cursor = await TestUser.changes().run();
+  const cursor = await Character.changes().run();
   await new Promise((resolve) => {
     cursor.each((change) => {
-      t.true(change.new_val instanceof TestUser);
+      t.true(change.new_val instanceof Character);
       resolve();
     });
 
-    const user = new TestUser({
+    const user = new Character({
       name: 'Marle',
       email: 'marle@thendoftime.com'
     });
@@ -97,9 +100,9 @@ test('Changefeeds return instances of models', async (t) => {
 
 test('Changefeeds `diff` correctly', async (t) => {
   let count = 0;
-  const cursor = await TestUser.changes().run();
+  const cursor = await Character.changes().run();
   await new Promise(async (resolve) => {
-    const user = new TestUser({
+    const user = new Character({
       name: 'Marle',
       email: 'marle@thendoftime.com'
     });
