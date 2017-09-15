@@ -15,3 +15,20 @@ function getRecursivePrototypeKeys(object, set = new Set()) {
 }
 
 module.exports.RQL_METHODS = getRecursivePrototypeKeys(r.db(''));
+
+const get = module.exports.get = (object, path) => {
+  const [property, ...rest] = path.split('.');
+  if (object.hasOwnProperty(property)) {
+    if (rest.length) {
+      return get(object[property], rest.join('.'));
+    } else {
+      return object[property];
+    }
+  }
+};
+
+module.exports.has = (object, path) => {
+  return !!get(object, path);
+};
+
+module.exports.selectRow = (property) => property.split('.').reduce((row, prop) => row(prop), r.row);

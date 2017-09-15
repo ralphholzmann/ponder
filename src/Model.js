@@ -1,4 +1,5 @@
-const { RQL_METHODS } = require('./util');
+const r = require('rethinkdb');
+const { RQL_METHODS, get, has, selectRow } = require('./util');
 const Query = require('./Query');
 
 const INSERT = Symbol('insert');
@@ -99,7 +100,20 @@ Model.setup = async function modelSetup(tableList) {
     for (let [indexName, definition] of Object.entries(this.indexes)) {
       if (!indexList.includes(indexName)) {
         const query = new Query(this);
-        query.indexCreate();
+
+        // Simple index
+        if (definition === true) {
+          if (has(this.schema, indexName)) {
+            await query.indexCreate(indexName, selectRow(indexName)).run();
+          } else {
+            throw new Error(`Unable to create simple index "${indexName}" on Model ${this.name} because that property does not exist on the Model's schema.`);
+          }
+        // Compound index
+        } else if (Array.isArray(definition)) {
+          definition.forEach(property => {
+
+          });
+        }
       }
     }
   }

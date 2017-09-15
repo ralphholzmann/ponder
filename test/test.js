@@ -5,7 +5,14 @@ class TestUser extends Model {}
 
 TestUser.schema = {
   name: String,
-  email: String
+  email: String,
+  age: Number,
+  tags: [String]
+};
+
+TestUser.indexes = {
+  'name': true,
+  'name_age': ['name', 'age'],
 };
 
 Database.register(TestUser);

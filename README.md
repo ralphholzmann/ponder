@@ -14,6 +14,7 @@ Needs a locally running instance of rethinkdb for tests.
         - [ ] Single
         - [ ] Compound
         - [ ] Multi
+        - [ ] Geo
 - [ ] Schema
     - [x] Type validation
     - [ ] Define indexes
