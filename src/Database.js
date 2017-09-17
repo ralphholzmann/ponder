@@ -54,7 +54,7 @@ class Database {
     await Promise.all(this.models.map(Model => Model.setup(tableList)));
   }
 
-  static async dropDatabase() {
+  static async teardown() {
     if (isTesting) {
       await this.execute(r.dbDrop(this.db));
     }
