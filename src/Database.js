@@ -1,21 +1,26 @@
 const r = require('rethinkdb');
 
+const DEFAULT_RETHINKDB_HOST = 'localhost';
 const DEFAULT_RETHINKDB_PORT = 28015;
 const DEFAULT_RETHINKDB_DB = 'test';
+const DEFAULT_RETHINKDB_USER = 'admin';
+const DEFAULT_RETHINKDB_PASSWORD = '';
 const isTesting = process.env.NODE_ENV === 'test';
 
 class Database {
-  static config({ host, port, db }) {
-    this.host = host || 'localhost';
+  static config({ host, port, db, user, password }) {
+    this.host = host || DEFAULT_RETHINKDB_HOST;
     this.port = port || DEFAULT_RETHINKDB_PORT;
     this.db = db || DEFAULT_RETHINKDB_DB;
+    this.user = user || DEFAULT_RETHINKDB_USER;
+    this.password = password || DEFAULT_RETHINKDB_PASSWORD;
     return this;
   }
 
   static async connect() {
     if (this.connection === undefined) {
-      const { host, port, db } = this;
-      this.connection = await r.connect({ host, port, db });
+      const { host, port, db, user, password } = this;
+      this.connection = await r.connect({ host, port, db, user, password });
       await this.setup();
     }
     return this.connection;
