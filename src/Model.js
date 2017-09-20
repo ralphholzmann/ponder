@@ -1,14 +1,24 @@
 const r = require('rethinkdb');
-const { RQL_METHODS, get, has, selectRow } = require('./util');
+const { RQL_METHODS, get, has, selectRow, capitalize } = require('./util');
 const Query = require('./Query');
 
 const INSERT = Symbol('insert');
 const UPDATE = Symbol('update');
 const pendingUpdate = Symbol('pendingUpdate');
+const defineProperties = Symbol('defineProperties');
+const defineRelations = Symbol('defineRelations');
 
 class Model {
   constructor(properties) {
     this[pendingUpdate] = {};
+    this[defineProperties]();
+    this[defineRelations]();
+
+    this.assign(properties);
+    this[pendingUpdate] = {};
+  }
+
+  [defineProperties] () {
     Object.keys(this.constructor.schema).forEach((key) => {
       let currentValue;
       Object.defineProperty(this, key, {
@@ -22,8 +32,27 @@ class Model {
         }
       });
     });
-    this.assign(properties);
-    this[pendingUpdate] = {};
+  }
+
+  [defineRelations]() {
+    const { relations } = this.constructor;
+    if (relations && relations.hasOne) {
+      for (let [property, { key, foreignKey }] of Object.entries(relations.hasOne)) {
+        let currentValue;
+
+        Object.defineProperty(this, property, {
+          enumerable: true,
+          set(value) {
+            // TODO: enforce model instance of here? maybe warn?
+            currentValue = value;
+            this[key] = value[foreignKey];
+          },
+          get() {
+            return currentValue;
+          }
+        });
+      }
+    }
   }
 
   assign(properties) {
@@ -34,26 +63,24 @@ class Model {
     }
 
     Object.keys(schema).forEach((key) => {
-      if (Object.prototype.hasOwnProperty.call(properties, key)) {
-        const config = schema[key];
-        let allowNull = false;
-        let type;
+      const config = schema[key];
+      let allowNull = false;
+      let type;
 
-        if (config.type) {
-          type = config.type;
+      if (config.type) {
+        type = config.type;
 
-          if ('allowNull' in config) {
-            allowNull = config.allowNull;
-          }
-        } else {
-          type = config;
+        if ('allowNull' in config) {
+          allowNull = config.allowNull;
         }
+      } else {
+        type = config;
+      }
 
-        if (allowNull && properties[key] === null) {
-          this[key] = null;
-        } else {
-          this[key] = type(properties[key]);
-        }
+      if (allowNull && (properties[key] === null || properties[key] === undefined)) {
+        this[key] = null;
+      } else {
+        this[key] = type(properties[key]);
       }
     });
   }
@@ -90,11 +117,36 @@ class Model {
 }
 
 Model.setup = async function modelSetup(tableList) {
+  await this.setupRelations();
+  await this.ensureTable(tableList);
+  await this.ensureIndexes();
+};
+
+Model.setupRelations = async function modelSetupRelations() {
+  if (this.relations) {
+      if (this.relations.hasOne) {
+        for (let [property, definition] of Object.entries(this.relations.hasOne)) {
+          const key = `${property}${capitalize(definition.foreignKey)}`;
+          definition.key = key;
+          if (!has(this.schema, key)) {
+            this.schema[key] = {
+              type: String,
+              allowNull: true
+            }
+          }
+        }
+      }
+  }
+};
+
+Model.ensureTable = async function modelEnsureTable(tableList) {
   const query = new Query(this);
   if (!tableList.includes(this.name)) {
     await query.tableCreate(this.name).run();
   }
+};
 
+Model.ensureIndexes = async function modelEnsureIndexes() {
   if (this.indexes) {
     const indexList = await this.indexList().run();
     for (let [indexName, definition] of Object.entries(this.indexes)) {

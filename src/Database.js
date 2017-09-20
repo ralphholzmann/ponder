@@ -58,6 +58,7 @@ class Database {
     if (isTesting) {
       await this.execute(r.dbDrop(this.db));
     }
+    await this.disconnect();
   }
 }
 

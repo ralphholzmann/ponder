@@ -41,6 +41,7 @@ class Query {
         return new ModelCursor(this[model], response);
       } else {
         const records = await response.toArray();
+        console.log('array response', records);
         return records.map(record => new this[model](record));
       }
     }
@@ -57,5 +58,20 @@ RQL_METHODS.forEach((method) => {
     return new this.constructor(this[model], this[stack].slice(0), this[methods].slice(0));
   };
 });
+
+Query.prototype.populate = function reqlPopulate() {
+  const { relations } = this[model];
+  let query = this;
+
+  if (relations.hasOne) {
+    for (let [property, definition] of Object.entries(relations.hasOne)) {
+      query = query.eqJoin(definition.key, r.table(definition.model)).map(function (result) {
+        return result.getField('left').merge({ [property]: result.getField('right') });
+      });
+    }
+  }
+
+  return query;
+}
 
 module.exports = Query;

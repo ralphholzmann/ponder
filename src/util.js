@@ -16,6 +16,8 @@ function getRecursivePrototypeKeys(object, set = new Set()) {
 
 module.exports.RQL_METHODS = getRecursivePrototypeKeys(r.db(''));
 
+module.exports.capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+
 const get = module.exports.get = (object, path) => {
   const [property, ...rest] = path.split('.');
   if (object.hasOwnProperty(property)) {

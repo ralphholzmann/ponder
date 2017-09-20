@@ -14,12 +14,14 @@ class Character extends Model {
     magicType_weaponType: ['magicType', 'weaponType']
   };
 
-  static relations = [{
-    model: 'Weapon',
-    relationship: 'hasMany',
-    primaryKey: 'id',
-    foreignKey: 'characterId'
-  }];
+  static relations = {
+    hasOne: {
+      equippedWeapon: {
+        model: 'Weapon',
+        foreignKey: 'id'
+      }
+    }
+  }
 }
 
 class Weapon extends Model {
@@ -40,6 +42,10 @@ test.before(async () => {
   await Database.connect();
 });
 
+test.after.always(async () => {
+  await Database.teardown();
+});
+
 test('Saving a new model instance adds an id to the instance', async (t) => {
   const user = new Character({
     name: 'Crono',
@@ -51,6 +57,17 @@ test('Saving a new model instance adds an id to the instance', async (t) => {
 
   t.truthy(user.id);
   t.truthy(returnedUser.id);
+
+  const weapon = new Weapon({
+    name: 'Dreamseeker',
+    type: 'Katana',
+    attack: 240
+  });
+
+  const returnedWeapon = await weapon.save();
+
+  t.truthy(weapon.id);
+  t.truthy(returnedWeapon.id);
 });
 
 test('Queries return instances of models', async (t) => {
@@ -137,4 +154,28 @@ test('Changefeeds `diff` correctly', async (t) => {
     await user.save();
   });
   await cursor.close();
+});
+
+test('hasOne relations save correctly', async (t) => {
+  const [character] = await Character.filter({
+    name: 'Crono'
+  }).run();
+
+  const [weapon] = await Weapon.filter({
+    name: 'Dreamseeker'
+  }).run();
+
+  character.equippedWeapon = weapon;
+  character.save();
+  t.is(character.equippedWeaponId, weapon.id);
+});
+
+test('hasOne relations load correctly', async (t) => {
+  const [character] = await Character.filter({
+    name: 'Crono'
+  }).populate().run();
+
+  console.log('character', character);
+
+  t.true(character.equippedWeapon instanceof Weapon);
 });
