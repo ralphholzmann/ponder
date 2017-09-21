@@ -7,6 +7,7 @@ const UPDATE = Symbol('update');
 const pendingUpdate = Symbol('pendingUpdate');
 const defineProperties = Symbol('defineProperties');
 const defineRelations = Symbol('defineRelations');
+const isTesting = process.env.NODE_ENV === 'test';
 
 class Model {
   constructor(properties) {
@@ -56,7 +57,7 @@ class Model {
   }
 
   assign(properties) {
-    const { schema } = this.constructor;
+    const { schema, relations } = this.constructor;
 
     if (Object.prototype.hasOwnProperty.call(properties, 'id')) {
       this.id = properties.id;
@@ -83,6 +84,16 @@ class Model {
         this[key] = type(properties[key]);
       }
     });
+
+    if (relations) {
+      if (relations.hasOne) {
+        for (let [property, { constructor }] of Object.entries(relations.hasOne)) {
+          if (Object.prototype.hasOwnProperty.call(properties, property) && properties[property] !== null) {
+            this[property] = new constructor(properties[property]);
+          }
+        }
+      }
+    }
   }
 
   async save() {
@@ -116,18 +127,19 @@ class Model {
   }
 }
 
-Model.setup = async function modelSetup(tableList) {
-  await this.setupRelations();
+Model.setup = async function modelSetup(tableList, models) {
+  await this.setupRelations(models);
   await this.ensureTable(tableList);
   await this.ensureIndexes();
 };
 
-Model.setupRelations = async function modelSetupRelations() {
+Model.setupRelations = async function modelSetupRelations(models) {
   if (this.relations) {
       if (this.relations.hasOne) {
         for (let [property, definition] of Object.entries(this.relations.hasOne)) {
           const key = `${property}${capitalize(definition.foreignKey)}`;
           definition.key = key;
+          definition.constructor = models.get(definition.model);
           if (!has(this.schema, key)) {
             this.schema[key] = {
               type: String,
@@ -142,7 +154,13 @@ Model.setupRelations = async function modelSetupRelations() {
 Model.ensureTable = async function modelEnsureTable(tableList) {
   const query = new Query(this);
   if (!tableList.includes(this.name)) {
-    await query.tableCreate(this.name).run();
+    const options = {};
+
+    if (isTesting) {
+      options.durability = 'hard';
+    }
+
+    await query.tableCreate(this.name, options).run();
   }
 };
 

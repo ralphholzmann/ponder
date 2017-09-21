@@ -19,6 +19,10 @@ class Character extends Model {
       equippedWeapon: {
         model: 'Weapon',
         foreignKey: 'id'
+      },
+      equippedArmor: {
+        model: 'Armor',
+        foreignKey: 'id'
       }
     }
   }
@@ -32,8 +36,16 @@ class Weapon extends Model {
   }
 }
 
+ class Armor extends Model {
+  static schema = {
+    name: String,
+    defense: Number
+  }
+ }
+
 Database.register(Character);
 Database.register(Weapon);
+Database.register(Armor);
 
 test.before(async () => {
   Database.config({
@@ -63,11 +75,19 @@ test('Saving a new model instance adds an id to the instance', async (t) => {
     type: 'Katana',
     attack: 240
   });
-
   const returnedWeapon = await weapon.save();
 
   t.truthy(weapon.id);
   t.truthy(returnedWeapon.id);
+
+  const armor = new Armor({
+    name: 'Regal Plate',
+    defense: 88
+  });
+  const returnedArmor = await armor.save();
+
+  t.truthy(armor.id);
+  t.truthy(returnedArmor.id);
 });
 
 test('Queries return instances of models', async (t) => {
@@ -165,9 +185,15 @@ test('hasOne relations save correctly', async (t) => {
     name: 'Dreamseeker'
   }).run();
 
+  const [armor] = await Armor.filter({
+    name: 'Regal Plate',
+  }).run();
+
   character.equippedWeapon = weapon;
-  character.save();
+  //character.equippedArmor = armor;
+  await character.save();
   t.is(character.equippedWeaponId, weapon.id);
+  //t.is(character.equippedArmorId, armor.id);
 });
 
 test('hasOne relations load correctly', async (t) => {
@@ -175,7 +201,9 @@ test('hasOne relations load correctly', async (t) => {
     name: 'Crono'
   }).populate().run();
 
-  console.log('character', character);
-
   t.true(character.equippedWeapon instanceof Weapon);
+  t.is(character.equippedWeaponId, character.equippedWeapon.id);
+
+  //t.true(character.equippedArmor instanceof Armor);
+  //t.is(character.equippedArmorId, character.equippedArmor.id);
 });

@@ -41,7 +41,6 @@ class Query {
         return new ModelCursor(this[model], response);
       } else {
         const records = await response.toArray();
-        console.log('array response', records);
         return records.map(record => new this[model](record));
       }
     }
@@ -65,9 +64,18 @@ Query.prototype.populate = function reqlPopulate() {
 
   if (relations.hasOne) {
     for (let [property, definition] of Object.entries(relations.hasOne)) {
+      query = query.map(function (result) {
+        return result.merge({
+          [property]: r.table(definition.model).getAll(result.getField(definition.key), {
+            index: definition.foreignKey
+          }).nth(0).default(null)
+        })
+      });
+      /** /
       query = query.eqJoin(definition.key, r.table(definition.model)).map(function (result) {
         return result.getField('left').merge({ [property]: result.getField('right') });
       });
+      /**/
     }
   }
 

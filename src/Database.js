@@ -38,7 +38,7 @@ class Database {
   }
 
   static register(Model) {
-    this.models.push(Model);
+    this.models.set(Model.name, Model);
   }
 
   static async ensureDatabase() {
@@ -49,9 +49,14 @@ class Database {
   }
 
   static async setup() {
+    if (isTesting) {
+      try {
+        await this.execute(r.dbDrop(this.db));
+      } catch (error) {}
+    }
     await this.ensureDatabase();
     const tableList = await this.execute(r.db(this.db).tableList());
-    await Promise.all(this.models.map(Model => Model.setup(tableList)));
+    await Promise.all(Array.from(this.models.values()).map(Model => Model.setup(tableList, this.models)));
   }
 
   static async teardown() {
@@ -62,6 +67,6 @@ class Database {
   }
 }
 
-Database.models = [];
+Database.models = new Map();
 
 module.exports = Database;
