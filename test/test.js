@@ -1,5 +1,30 @@
 import test from 'ava';
+import r from 'rethinkdb';
 import { Database, Model } from '../src';
+
+class Era extends Model {
+  static schema = {
+    name: String,
+    year: Number,
+    annoDomini: Boolean
+  };
+
+  static relations = {
+    hasMany: {
+      towns: {
+        model: 'Place',
+        foreignKey: 'id'
+      }
+    }
+  }
+}
+
+class Place extends Model {
+  static schema = {
+    name: String,
+    location: r.point
+  }
+}
 
 class Character extends Model {
   static schema = {
@@ -7,7 +32,7 @@ class Character extends Model {
     age: Number,
     magicType: String,
     weaponType: String
-  }
+  };
 
   static indexes = {
     name: true,
@@ -36,16 +61,18 @@ class Weapon extends Model {
   }
 }
 
- class Armor extends Model {
+class Armor extends Model {
   static schema = {
     name: String,
     defense: Number
   }
- }
+}
 
 Database.register(Character);
 Database.register(Weapon);
 Database.register(Armor);
+Database.register(Era);
+Database.register(Place);
 
 test.before(async () => {
   Database.config({
@@ -190,10 +217,10 @@ test('hasOne relations save correctly', async (t) => {
   }).run();
 
   character.equippedWeapon = weapon;
-  //character.equippedArmor = armor;
+  character.equippedArmor = armor;
   await character.save();
   t.is(character.equippedWeaponId, weapon.id);
-  //t.is(character.equippedArmorId, armor.id);
+  t.is(character.equippedArmorId, armor.id);
 });
 
 test('hasOne relations load correctly', async (t) => {
@@ -204,6 +231,30 @@ test('hasOne relations load correctly', async (t) => {
   t.true(character.equippedWeapon instanceof Weapon);
   t.is(character.equippedWeaponId, character.equippedWeapon.id);
 
-  //t.true(character.equippedArmor instanceof Armor);
-  //t.is(character.equippedArmorId, character.equippedArmor.id);
+  t.true(character.equippedArmor instanceof Armor);
+  t.is(character.equippedArmorId, character.equippedArmor.id);
+});
+
+test('hasMany relations save correctly', async (t) => {
+  const era = new Era({
+    name: 'present',
+    year: 1000,
+    annoDomini: true
+  });
+
+  await era.save();
+
+  const leeneSquare = new Place({
+    name: 'Leene Square',
+    location: [50, 50]
+  });
+  await leeneSquare.save();
+
+  const truceInn = new Place({
+    name: 'Truce Inn',
+    location: [30, 50]
+  });
+  await truceInn.save();
+
+  t.true(true);
 });

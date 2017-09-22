@@ -71,11 +71,6 @@ Query.prototype.populate = function reqlPopulate() {
           }).nth(0).default(null)
         })
       });
-      /** /
-      query = query.eqJoin(definition.key, r.table(definition.model)).map(function (result) {
-        return result.getField('left').merge({ [property]: result.getField('right') });
-      });
-      /**/
     }
   }
 

@@ -120,6 +120,7 @@ class Model {
     Object.keys(schema).forEach((key) => {
       payload[key] = this[key];
     });
+    console.log('pl', payload);
 
     const query = new Query(this);
     const result = await query.table(this.constructor.name).insert(payload).run();
