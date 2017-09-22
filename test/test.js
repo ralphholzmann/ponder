@@ -1,6 +1,5 @@
 import test from 'ava';
-import r from 'rethinkdb';
-import { Database, Model } from '../src';
+import { Database, Model, Point } from '../src';
 
 class Era extends Model {
   static schema = {
@@ -11,9 +10,9 @@ class Era extends Model {
 
   static relations = {
     hasMany: {
-      towns: {
+      places: {
         model: 'Place',
-        foreignKey: 'id'
+        primaryKey: 'id'
       }
     }
   }
@@ -22,7 +21,7 @@ class Era extends Model {
 class Place extends Model {
   static schema = {
     name: String,
-    location: r.point
+    location: Point
   }
 }
 
@@ -256,5 +255,24 @@ test('hasMany relations save correctly', async (t) => {
   });
   await truceInn.save();
 
-  t.true(true);
+  era.places.push(leeneSquare);
+  era.places.push(truceInn);
+
+  await leeneSquare.save();
+  await truceInn.save();
+
+  t.is(era.places[0], leeneSquare);
+  t.is(era.places[1], truceInn);
+  t.is(leeneSquare.eraId, era.id);
+  t.is(truceInn.eraId, era.id);
+});
+
+test('hasMany relations load correctly', async (t) => {
+  const [present] = await Era.filter({
+    name: 'present'
+  }).populate().run();
+
+  t.is(present.places.length, 2);
+  t.true(present.places[0] instanceof Place);
+  t.true(present.places[1] instanceof Place);
 });

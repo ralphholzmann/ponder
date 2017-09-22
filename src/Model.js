@@ -1,5 +1,12 @@
 const r = require('rethinkdb');
-const { RQL_METHODS, get, has, selectRow, capitalize } = require('./util');
+const {
+  RQL_METHODS,
+  get,
+  has,
+  selectRow,
+  capitalize,
+  lcfirst
+} = require('./util');
 const Query = require('./Query');
 
 const INSERT = Symbol('insert');
@@ -54,6 +61,35 @@ class Model {
         });
       }
     }
+
+    if (relations && relations.hasMany) {
+      for (let [property, { key, primaryKey, constructor }] of Object.entries(relations.hasMany)) {
+        const setHandler = {
+          set: (target, prop, value) => {
+            if (!isNaN(prop)) {
+              value[key] = this[primaryKey];
+            }
+            target[prop] = value;
+            return true;
+          }
+        }
+
+        let observer = new Proxy([], setHandler);
+
+        Object.defineProperty(this, property, {
+          enumerable: true,
+          set(value) {
+            if (!Array.isArray(value)) {
+              throw new Error(`'${property}' on ${this.constructor.name} instance must be an array of ${constructor.name} instances.`);
+            }
+            observer = new Proxy(value, setHandler);
+          },
+          get() {
+            return observer;
+          }
+        });
+      }
+    }
   }
 
   assign(properties) {
@@ -93,6 +129,14 @@ class Model {
           }
         }
       }
+
+      if (relations.hasMany) {
+        for (let [property, { constructor }] of Object.entries(relations.hasMany)) {
+          if (Object.prototype.hasOwnProperty.call(properties, property) && properties[property] !== null) {
+            this[property] = properties[property].map(record => new constructor(record));
+          }
+        }
+      }
     }
   }
 
@@ -120,7 +164,6 @@ class Model {
     Object.keys(schema).forEach((key) => {
       payload[key] = this[key];
     });
-    console.log('pl', payload);
 
     const query = new Query(this);
     const result = await query.table(this.constructor.name).insert(payload).run();
@@ -136,19 +179,41 @@ Model.setup = async function modelSetup(tableList, models) {
 
 Model.setupRelations = async function modelSetupRelations(models) {
   if (this.relations) {
-      if (this.relations.hasOne) {
-        for (let [property, definition] of Object.entries(this.relations.hasOne)) {
-          const key = `${property}${capitalize(definition.foreignKey)}`;
-          definition.key = key;
-          definition.constructor = models.get(definition.model);
-          if (!has(this.schema, key)) {
-            this.schema[key] = {
-              type: String,
-              allowNull: true
-            }
+    if (this.relations.hasOne) {
+      for (let [property, definition] of Object.entries(this.relations.hasOne)) {
+        const key = `${property}${capitalize(definition.foreignKey)}`;
+        definition.key = key;
+        definition.constructor = models.get(definition.model);
+        if (!has(this.schema, key)) {
+          this.schema[key] = {
+            type: String,
+            allowNull: true
           }
         }
       }
+    }
+
+    if (this.relations.hasMany) {
+      for (let [property, definition] of Object.entries(this.relations.hasMany)) {
+        const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey)}`;
+        const model = models.get(definition.model);
+
+        definition.key = key;
+        definition.constructor = model;
+
+        if (!has(model.schema, key)) {
+          model.schema[key] = {
+            type: String,
+            allowNull: true
+          }
+          if (!has(model, 'indexes')) {
+            model.indexes = {};
+          }
+
+          model.indexes[key] = true;
+        }
+      }
+    }
   }
 };
 
