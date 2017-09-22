@@ -11,14 +11,27 @@ Needs a locally running instance of rethinkdb for tests.
     - [x] Create database
     - [x] Create tables
     - [x] Ensure indexes
-        - [x] Single
-        - [x] Compound
-        - [ ] Multi
-        - [ ] Geo
+      - [x] Single
+      - [x] Compound
+      - [ ] Multi
+      - [ ] Geo
+    - [ ] connection management API
 - [ ] Schema
     - [x] Type validation
     - [x] Define indexes
     - [ ] Define relations without race conditions
+      - [x] `hasOne`
+      - [x] `hasMany`
+      - [ ] two way `hasMany` (aka, `manyToMany`) requiring join table
+    - [ ] Populating relations (aka, `getJoin`)
+      - [x] `hasOne`
+        - [x] single level
+        - [ ] multi level
+      - [x] `hasMany`
+        - [x] single level
+        - [ ] multi level
+      - [ ] `tap` API allowing you to take control of the relation ReQL
+      - [ ] API to allow you to choose which relations get loaded
 - [ ] Models
     - [x] ReQL proxying
     - [x] Static methods
