@@ -28,7 +28,7 @@ class Query {
   }
 
   async processResponse(response) {
-    const isArrayResult = Array.isArray(response) && typeof response.toArray === 'function'; 
+    const isArrayResult = Array.isArray(response) && typeof response.toArray === 'function';
     const methodList = this[methods];
 
     // Single record returned - `get` call
@@ -71,11 +71,18 @@ Query.prototype.populate = function reqlPopulate() {
           }).nth(0).default(null)
         })
       });
-      /** /
-      query = query.eqJoin(definition.key, r.table(definition.model)).map(function (result) {
-        return result.getField('left').merge({ [property]: result.getField('right') });
+    }
+  }
+
+  if (relations.hasMany) {
+    for (let [property, definition] of Object.entries(relations.hasMany)) {
+      query = query.map(function (result) {
+        return result.merge({
+          [property]: r.table(definition.model).getAll(result.getField(definition.primaryKey), {
+            index: definition.key
+          }).coerceTo('array')
+        })
       });
-      /**/
     }
   }
 
