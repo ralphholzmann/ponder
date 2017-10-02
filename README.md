@@ -32,6 +32,7 @@ Needs a locally running instance of rethinkdb for tests.
         - [ ] multi level
       - [ ] `tap` API allowing you to take control of the relation ReQL
       - [ ] API to allow you to choose which relations get loaded
+     - [ ] Define virtuals
 - [ ] Models
     - [x] ReQL proxying
     - [x] Static methods
@@ -43,6 +44,7 @@ Needs a locally running instance of rethinkdb for tests.
     - [ ] Deleting
     - [ ] Unique properties via lookup table
     - [ ] Pre/Post hooks
+      - [ ] Include old version in hooks
 - [x] Cursors
     - [x] Return model instances
 - [x] Changefeeds
