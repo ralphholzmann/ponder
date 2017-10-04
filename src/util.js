@@ -14,24 +14,28 @@ function getRecursivePrototypeKeys(object, set = new Set()) {
   return set;
 }
 
-module.exports.RQL_METHODS = getRecursivePrototypeKeys(r.db(''));
-
-module.exports.capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-module.exports.lcfirst = (str) => str.charAt(0).toLowerCase() + str.slice(1);
-
-const get = module.exports.get = (object, path) => {
+const has = (object, path) => {
   const [property, ...rest] = path.split('.');
-  if (object.hasOwnProperty(property)) {
-    if (rest.length) {
-      return get(object[property], rest.join('.'));
-    } else {
-      return object[property];
-    }
+  const hasProperty = Object.prototype.hasOwnProperty.call(object, path);
+  if (rest.length) {
+    return has(object[property], rest.join('.'));
   }
+
+  return hasProperty;
+}
+
+const get = (object, path) => {
+  const [property, ...rest] = path.split('.');
+  if (has(object, property) && rest.length) {
+    return get(object[property], rest.join('.'));
+  }
+  return object[property];
 };
 
-module.exports.has = (object, path) => {
-  return !!get(object, path);
-};
 
-module.exports.selectRow = (property) => property.split('.').reduce((row, prop) => row(prop), r.row);
+module.exports.selectRow = property => property.split('.').reduce((row, prop) => row(prop), r.row);
+module.exports.capitalize = str => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+module.exports.lcfirst = str => str.charAt(0).toLowerCase() + str.slice(1);
+module.exports.RQL_METHODS = getRecursivePrototypeKeys(r.db(''));
+module.exports.get = get;
+module.exports.has = has;

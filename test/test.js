@@ -212,11 +212,12 @@ test('hasOne relations save correctly', async (t) => {
   }).run();
 
   const [armor] = await Armor.filter({
-    name: 'Regal Plate',
+    name: 'Regal Plate'
   }).run();
 
   character.equippedWeapon = weapon;
   character.equippedArmor = armor;
+
   await character.save();
   t.is(character.equippedWeaponId, weapon.id);
   t.is(character.equippedArmorId, armor.id);
