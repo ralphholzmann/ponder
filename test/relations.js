@@ -68,6 +68,39 @@ Database.register(Quote);
 Database.register(Exchange);
 Database.register(Country);
 
+class A extends Model {
+  static schema = {
+    name: String
+  };
+
+  static relations = {
+    hasOne: {
+      b: {
+        model: 'B',
+        foreignKey: 'id'
+      }
+    }
+  }
+}
+
+class B extends Model {
+  static schema = {
+    name: String
+  };
+
+  static relations = {
+    hasOne: {
+      a: {
+        model: 'A',
+        foreignKey: 'id'
+      }
+    }
+  }
+}
+
+Database.register(A);
+Database.register(B);
+
 test.before(async () => {
   Database.config({
     db: 'test_db'
@@ -75,8 +108,7 @@ test.before(async () => {
   await Database.connect();
 });
 
-/**/
-test.only('Can create complex relations before IDs exist', async (t) => {
+test('Can create complex relations before IDs exist', async (t) => {
   const asset = new Asset({
     name: 'Apple Inc.'
   });
@@ -114,4 +146,19 @@ test.only('Can create complex relations before IDs exist', async (t) => {
   t.is(exchange.countryId, country.id);
 });
 
-/**/
+test('Can handle 1:1 circular dependencies', async (test) => {
+  const a = new A({
+    name: 'model a'
+  });
+
+  const b = new B({
+    name: 'model b'
+  });
+
+  a.b = b;
+  b.a = a;
+
+  await a.save();
+  t.is(a.bId, b.id);
+  t.is(b.aId, a.id);
+});

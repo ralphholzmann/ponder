@@ -9,6 +9,7 @@ const Query = require('./Query');
 
 const INSERT = Symbol('insert');
 const UPDATE = Symbol('update');
+const STACK = Symbol('stack');
 const pendingUpdate = Symbol('pendingUpdate');
 const defineProperties = Symbol('defineProperties');
 const defineRelations = Symbol('defineRelations');
@@ -127,12 +128,18 @@ class Model {
     });
   }
 
-  async save() {
+  async save(options = {}) {
+    options = Object.assign({
+      [STACK]: new Set()
+    }, options);
+
+    options[STACK].add(this);
     if (Object.prototype.hasOwnProperty.call(this, 'id')) {
-      await this[UPDATE]();
+      await this[UPDATE](options);
     } else {
-      await this[INSERT]();
+      await this[INSERT](options);
     }
+    options[STACK].delete(this);
 
     return this;
   }
@@ -144,14 +151,14 @@ class Model {
     return this;
   }
 
-  async [INSERT]() {
+  async [INSERT](options) {
     const { schema } = this.constructor;
     const payload = {};
-
+    const circular = options[STACK].has(this);
 
     await this.constructor.forEachHasOne(async ({ key, foreignKey, constructor }, property) => {
-      if (this[property] instanceof constructor) {
-        await this[property].save();
+      if (this[property] instanceof constructor && !circular) {
+        await this[property].save(options);
         this[key] = this[property][foreignKey];
       }
     });
@@ -167,7 +174,7 @@ class Model {
     await this.constructor.forEachHasMany(async ({ key, primaryKey }, property) => {
       await Promise.all(this[property].map((instance) => {
         instance[key] = this[primaryKey];
-        return instance.save();
+        return instance.save(options);
       }));
     });
   }
