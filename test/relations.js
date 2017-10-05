@@ -146,7 +146,7 @@ test('Can create complex relations before IDs exist', async (t) => {
   t.is(exchange.countryId, country.id);
 });
 
-test('Can handle 1:1 circular dependencies', async (test) => {
+test.only('Can handle 1:1 circular dependencies', async (t) => {
   const a = new A({
     name: 'model a'
   });
@@ -158,7 +158,16 @@ test('Can handle 1:1 circular dependencies', async (test) => {
   a.b = b;
   b.a = a;
 
+  console.log('baid', b.aId)
+
   await a.save();
+
+  console.log(a.id);
+  console.log(b.aId);
+
+  console.log(b.id);
+  console.log(a.bId);
+
   t.is(a.bId, b.id);
   t.is(b.aId, a.id);
 });

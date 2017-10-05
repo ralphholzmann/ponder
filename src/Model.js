@@ -50,7 +50,11 @@ class Model {
         set(value) {
           // TODO: enforce model instance of here? maybe warn?
           currentValue = value;
-          this[key] = value[foreignKey];
+          if (typeof value[foreignKey] !== 'undefined') {
+            this[key] = value[foreignKey];
+          } else {
+            this[key] = null;
+          }
         },
         get() {
           return currentValue;
@@ -133,13 +137,11 @@ class Model {
       [STACK]: new Set()
     }, options);
 
-    options[STACK].add(this);
-    if (Object.prototype.hasOwnProperty.call(this, 'id')) {
+    if (has(this, 'id')) {
       await this[UPDATE](options);
     } else {
       await this[INSERT](options);
     }
-    options[STACK].delete(this);
 
     return this;
   }
@@ -152,24 +154,50 @@ class Model {
   }
 
   async [INSERT](options) {
+    const log = console.log.bind(console, this.constructor.name, ':');
     const { schema } = this.constructor;
     const payload = {};
     const circular = options[STACK].has(this);
 
+    if (circular) {
+      log('returning early circular reference');
+      return;
+    }
+
+    log('inserting');
+    options[STACK].add(this);
+
+
     await this.constructor.forEachHasOne(async ({ key, foreignKey, constructor }, property) => {
       if (this[property] instanceof constructor && !circular) {
         await this[property].save(options);
-        this[key] = this[property][foreignKey];
+        if (typeof this[property][foreignKey] !== 'undefined') {
+          this[key] = this[property][foreignKey];
+        }
       }
     });
 
     Object.keys(schema).forEach((key) => {
+      log('key', key, this[key]);
       payload[key] = this[key];
     });
+    log('payload', payload);
 
     const query = new Query(this);
     const result = await query.table(this.constructor.name).insert(payload).run();
     this.id = result.generated_keys[0];
+    log('got id', this.id)
+
+    // Fix up circular references
+    await this.constructor.forEachHasOne(async ({ key, foreignKey, constructor }, property) => {
+      if (this[property] instanceof constructor) {
+        if (typeof this[property][foreignKey] !== 'undefined' && this[key] === null) {
+          this[key] = this[property][foreignKey];
+          log("FIXING UP", this[key], this[property][foreignKey]);
+          log('SHOULD UPDATE');
+        }
+      }
+    });
 
     await this.constructor.forEachHasMany(async ({ key, primaryKey }, property) => {
       await Promise.all(this[property].map((instance) => {
@@ -177,6 +205,8 @@ class Model {
         return instance.save(options);
       }));
     });
+
+    options[STACK].delete(this);
   }
 }
 
