@@ -148,6 +148,14 @@ class Model {
     const { schema } = this.constructor;
     const payload = {};
 
+
+    await this.constructor.forEachHasOne(async ({ key, foreignKey, constructor }, property) => {
+      if (this[property] instanceof constructor) {
+        await this[property].save();
+        this[key] = this[property][foreignKey];
+      }
+    });
+
     Object.keys(schema).forEach((key) => {
       payload[key] = this[key];
     });
@@ -155,6 +163,13 @@ class Model {
     const query = new Query(this);
     const result = await query.table(this.constructor.name).insert(payload).run();
     this.id = result.generated_keys[0];
+
+    await this.constructor.forEachHasMany(async ({ key, primaryKey }, property) => {
+      await Promise.all(this[property].map((instance) => {
+        instance[key] = this[primaryKey];
+        return instance.save();
+      }));
+    });
   }
 }
 
@@ -189,7 +204,8 @@ Model.setupRelations = async function modelSetupRelations(models) {
     if (!has(this.schema, key)) {
       this.schema[key] = {
         type: String,
-        allowNull: true
+        allowNull: true,
+        relation: true
       }
     }
   });
@@ -205,7 +221,8 @@ Model.setupRelations = async function modelSetupRelations(models) {
     if (!has(model.schema, key)) {
       model.schema[key] = {
         type: String,
-        allowNull: true
+        allowNull: true,
+        relation: true
       }
       if (!has(model, 'indexes')) {
         model.indexes = {};

@@ -75,8 +75,8 @@ test.before(async () => {
   await Database.connect();
 });
 
-/** /
-test('Can create complex relations before IDs exist', async (t) => {
+/**/
+test.only('Can create complex relations before IDs exist', async (t) => {
   const asset = new Asset({
     name: 'Apple Inc.'
   });
@@ -109,6 +109,9 @@ test('Can create complex relations before IDs exist', async (t) => {
   asset.quotes.push(quote);
 
   await asset.save();
+  t.is(asset.id, quote.assetId);
+  t.is(quote.exchangeId, exchange.id);
+  t.is(exchange.countryId, country.id);
 });
 
 /**/
