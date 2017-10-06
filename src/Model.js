@@ -18,6 +18,8 @@ const defineProperties = Symbol('defineProperties');
 const defineRelations = Symbol('defineRelations');
 const isTesting = process.env.NODE_ENV === 'test';
 
+const BASE_PROTO = (class {}).__proto__;
+
 class Model {
   constructor(properties) {
     this[pendingUpdate] = {};
@@ -211,9 +213,22 @@ class Model {
 }
 
 Model.setup = async function modelSetup(tableList, models) {
+  this.applyMixins();
   await this.setupRelations(models);
   await this.ensureTable(tableList);
   await this.ensureIndexes();
+};
+
+Model.applyMixins = function () {
+  (function mixinSchema (schema, classDef) {
+    if (classDef.schema) {
+      Object.assign(schema, classDef.schema);
+    }
+
+    if (classDef.__proto__ !== BASE_PROTO) {
+      mixinSchema(schema, classDef.__proto__)
+    }
+  }(this.schema, this.__proto__));
 };
 
 Model.forEachHasOne = async function (callback) {
@@ -309,6 +324,8 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
     await this.indexWait().run();
   }
 };
+
+Model.with = (...args) => args.reduce((superclass, mixin) => mixin(superclass), Model);
 
 RQL_METHODS.forEach((method) => {
   Model[method] = function rqlProxy(...args) {
