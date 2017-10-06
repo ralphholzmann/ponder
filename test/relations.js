@@ -164,3 +164,76 @@ test('Can handle 1:1 circular dependencies', async (t) => {
   t.is(a.bId, b.id);
   t.is(b.aId, a.id);
 });
+
+class C extends Model {
+  static schema = {
+    name: String
+  };
+
+  static relations = {
+    hasOne: {
+      d: {
+        model: 'D',
+        foreignKey: 'id'
+      }
+    }
+  }
+}
+
+class D extends Model {
+  static schema = {
+    name: String
+  };
+
+  static relations = {
+    hasOne: {
+      e: {
+        model: 'E',
+        foreignKey: 'id'
+      }
+    }
+  }
+}
+
+class E extends Model {
+  static schema = {
+    name: String
+  };
+
+  static relations = {
+    hasOne: {
+      c: {
+        model: 'C',
+        foreignKey: 'id'
+      }
+    }
+  }
+}
+
+Database.register(C);
+Database.register(D);
+Database.register(E);
+
+test('Can handle 3 way circular dependencies', async (t) => {
+  const c = new C({
+    name: 'model c'
+  });
+
+  const d = new D({
+    name: 'model d'
+  });
+
+  const e = new E({
+    name: 'model e'
+  });
+
+  c.d = d;
+  d.e = e;
+  e.c = c;
+
+  await c.save();
+
+  t.is(c.dId, d.id);
+  t.is(d.eId, e.id);
+  t.is(e.cId, c.id);
+});

@@ -1,13 +1,14 @@
 import test from 'ava';
 import { Database, Model } from '../src';
-import TimeStamp from '../src/mixins/Timestamp';
-import Deleted from '../src/mixins/Deleted';
+import TimeStampMixin from '../src/mixins/Timestamp';
+import SoftDeleteMixin from '../src/mixins/Deleted';
 
-class Message extends Model.with(TimeStamp, Deleted) {
+class Message extends Model.with(TimeStampMixin, SoftDeleteMixin) {
   static schema = {
     text: String
   }
 }
+
 Database.register(Message);
 
 test.before(async () => {
