@@ -10,6 +10,9 @@ const Query = require('./Query');
 const INSERT = Symbol('insert');
 const UPDATE = Symbol('update');
 const STACK = Symbol('stack');
+const PENDING = Symbol('pending');
+const ROOT = Symbol('root');
+
 const pendingUpdate = Symbol('pendingUpdate');
 const defineProperties = Symbol('defineProperties');
 const defineRelations = Symbol('defineRelations');
@@ -134,7 +137,9 @@ class Model {
 
   async save(options = {}) {
     options = Object.assign({
-      [STACK]: new Set()
+      [STACK]: new Set(),
+      [PENDING]: [],
+      [ROOT]: true
     }, options);
 
     if (has(this, 'id')) {
@@ -154,50 +159,39 @@ class Model {
   }
 
   async [INSERT](options) {
-    const log = console.log.bind(console, this.constructor.name, ':');
     const { schema } = this.constructor;
     const payload = {};
-    const circular = options[STACK].has(this);
 
-    if (circular) {
-      log('returning early circular reference');
-      return;
-    }
-
-    log('inserting');
     options[STACK].add(this);
 
-
     await this.constructor.forEachHasOne(async ({ key, foreignKey, constructor }, property) => {
-      if (this[property] instanceof constructor && !circular) {
-        await this[property].save(options);
-        if (typeof this[property][foreignKey] !== 'undefined') {
-          this[key] = this[property][foreignKey];
+      if (this[property] instanceof constructor) {
+        if (options[STACK].has(this[property])) {
+          // Circular reference
+          options[PENDING].push(async () => {
+            this[key] = this[property][foreignKey];
+            await this[UPDATE]();
+          });
+        } else {
+          await this[property].save(Object.assign({}, options, {
+            [ROOT]: false
+          }));
+          if (typeof this[property][foreignKey] !== 'undefined') {
+            this[key] = this[property][foreignKey];
+          }
         }
       }
     });
 
     Object.keys(schema).forEach((key) => {
-      log('key', key, this[key]);
       payload[key] = this[key];
     });
-    log('payload', payload);
 
     const query = new Query(this);
     const result = await query.table(this.constructor.name).insert(payload).run();
     this.id = result.generated_keys[0];
-    log('got id', this.id)
 
     // Fix up circular references
-    await this.constructor.forEachHasOne(async ({ key, foreignKey, constructor }, property) => {
-      if (this[property] instanceof constructor) {
-        if (typeof this[property][foreignKey] !== 'undefined' && this[key] === null) {
-          this[key] = this[property][foreignKey];
-          log("FIXING UP", this[key], this[property][foreignKey]);
-          log('SHOULD UPDATE');
-        }
-      }
-    });
 
     await this.constructor.forEachHasMany(async ({ key, primaryKey }, property) => {
       await Promise.all(this[property].map((instance) => {
@@ -207,6 +201,12 @@ class Model {
     });
 
     options[STACK].delete(this);
+
+    if (options[ROOT] && options[PENDING]) {
+      for (let update of options[PENDING]) {
+        await update();
+      }
+    }
   }
 }
 

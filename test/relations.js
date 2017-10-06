@@ -68,38 +68,6 @@ Database.register(Quote);
 Database.register(Exchange);
 Database.register(Country);
 
-class A extends Model {
-  static schema = {
-    name: String
-  };
-
-  static relations = {
-    hasOne: {
-      b: {
-        model: 'B',
-        foreignKey: 'id'
-      }
-    }
-  }
-}
-
-class B extends Model {
-  static schema = {
-    name: String
-  };
-
-  static relations = {
-    hasOne: {
-      a: {
-        model: 'A',
-        foreignKey: 'id'
-      }
-    }
-  }
-}
-
-Database.register(A);
-Database.register(B);
 
 test.before(async () => {
   Database.config({
@@ -146,7 +114,40 @@ test('Can create complex relations before IDs exist', async (t) => {
   t.is(exchange.countryId, country.id);
 });
 
-test.only('Can handle 1:1 circular dependencies', async (t) => {
+class A extends Model {
+  static schema = {
+    name: String
+  };
+
+  static relations = {
+    hasOne: {
+      b: {
+        model: 'B',
+        foreignKey: 'id'
+      }
+    }
+  }
+}
+
+class B extends Model {
+  static schema = {
+    name: String
+  };
+
+  static relations = {
+    hasOne: {
+      a: {
+        model: 'A',
+        foreignKey: 'id'
+      }
+    }
+  }
+}
+
+Database.register(A);
+Database.register(B);
+
+test('Can handle 1:1 circular dependencies', async (t) => {
   const a = new A({
     name: 'model a'
   });
@@ -158,15 +159,7 @@ test.only('Can handle 1:1 circular dependencies', async (t) => {
   a.b = b;
   b.a = a;
 
-  console.log('baid', b.aId)
-
   await a.save();
-
-  console.log(a.id);
-  console.log(b.aId);
-
-  console.log(b.id);
-  console.log(a.bId);
 
   t.is(a.bId, b.id);
   t.is(b.aId, a.id);
