@@ -12,13 +12,14 @@ const UPDATE = Symbol('update');
 const STACK = Symbol('stack');
 const PENDING = Symbol('pending');
 const ROOT = Symbol('root');
+const HOOKS = Symbol('hooks');
 
 const pendingUpdate = Symbol('pendingUpdate');
 const defineProperties = Symbol('defineProperties');
 const defineRelations = Symbol('defineRelations');
 const isTesting = process.env.NODE_ENV === 'test';
 
-const BASE_PROTO = (class {}).__proto__;
+const BASE_PROTO = Object.getPrototypeOf(class {});
 
 class Model {
   constructor(properties) {
@@ -96,9 +97,9 @@ class Model {
   }
 
   assign(properties) {
-    const { schema, relations } = this.constructor;
+    const { schema } = this.constructor;
 
-    if (Object.prototype.hasOwnProperty.call(properties, 'id')) {
+    if (has(properties, 'id')) {
       this.id = properties.id;
     }
 
@@ -117,7 +118,7 @@ class Model {
         type = config;
       }
 
-      if (allowNull && (properties[key] === null || properties[key] === undefined)) {
+      if (type === Date && typeof properties[key] === 'undefined' || allowNull && (properties[key] === null || properties[key] === undefined)) {
         this[key] = null;
       } else {
         this[key] = type(properties[key]);
@@ -144,11 +145,34 @@ class Model {
       [ROOT]: true
     }, options);
 
+    // beforeSave hooks
+    await (async function runBeforeSaveHooks(model, classDef) {
+      if (classDef.beforeSave) {
+        await classDef.beforeSave(model);
+      }
+
+      if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
+        await runBeforeSaveHooks(model, Object.getPrototypeOf(classDef));
+      }
+    }(this, this.constructor));
+
+
     if (has(this, 'id')) {
       await this[UPDATE](options);
     } else {
       await this[INSERT](options);
     }
+
+    // afterSave hooks
+    await (async function runAfterSaveHooks(model, classDef) {
+      if (classDef.beforeSave) {
+        await classDef.beforeSave(model);
+      }
+
+      if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
+        await runAfterSaveHooks(model, Object.getPrototypeOf(classDef));
+      }
+    }(this, this.constructor));
 
     return this;
   }
@@ -225,10 +249,10 @@ Model.applyMixins = function () {
       Object.assign(schema, classDef.schema);
     }
 
-    if (classDef.__proto__ !== BASE_PROTO) {
-      mixinSchema(schema, classDef.__proto__)
+    if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
+      mixinSchema(schema, Object.getPrototypeOf(classDef));
     }
-  }(this.schema, this.__proto__));
+  }(this.schema, Object.getPrototypeOf(this)));
 };
 
 Model.forEachHasOne = async function (callback) {
