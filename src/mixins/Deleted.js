@@ -1,14 +1,22 @@
 module.exports = (superclass) => {
-  class Deleted extends superclass {
+  class SoftDelete extends superclass {
     async delete() {
       this.deleted = new Date();
       await this.save();
     }
   }
 
-  Deleted.schema = {
+  SoftDelete.RQL = {
+    delete: function () {
+      return this.update({
+        deleted: new Date()
+      });
+    }
+  };
+
+  SoftDelete.schema = {
     deleted: Date
   };
 
-  return Deleted;
+  return SoftDelete;
 };

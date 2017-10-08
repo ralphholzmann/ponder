@@ -50,6 +50,9 @@ class Query {
   }
 }
 
+module.exports.STACK_SYMBOL = stack;
+module.exports.METHODS_SYMBOL = methods;
+
 RQL_METHODS.forEach((method) => {
   Query.prototype[method] = function reqlChain(...args) {
     this[stack].push(query => query[method](...args));

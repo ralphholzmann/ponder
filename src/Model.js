@@ -218,7 +218,6 @@ class Model {
     this.id = result.generated_keys[0];
 
     // Fix up circular references
-
     await this.constructor.forEachHasMany(async ({ key, primaryKey }, property) => {
       await Promise.all(this[property].map((instance) => {
         instance[key] = this[primaryKey];
@@ -244,6 +243,7 @@ Model.setup = async function modelSetup(tableList, models) {
 };
 
 Model.applyMixins = function () {
+  // Mixin Schema
   (function mixinSchema (schema, classDef) {
     if (classDef.schema) {
       Object.assign(schema, classDef.schema);
@@ -253,6 +253,27 @@ Model.applyMixins = function () {
       mixinSchema(schema, Object.getPrototypeOf(classDef));
     }
   }(this.schema, Object.getPrototypeOf(this)));
+
+  // Mixin ReQL
+  this.ModelQuery = class extends Query {};
+
+  (function mixinReQL (ReQL, classDef) {
+    if (classDef.schema) {
+      Object.assign(schema, classDef.schema);
+    }
+
+    if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
+      mixinReQL(schema, Object.getPrototypeOf(classDef));
+    }
+  }(this, Object.getPrototypeOf(this)));
+
+  RQL_METHODS.forEach((method) => {
+    this[method] = function rqlProxy(...args) {
+      const query = (new this.ModelQuery(this)).table(this.name);
+      return query[method](...args);
+    };
+  });
+
 };
 
 Model.forEachHasOne = async function (callback) {
@@ -350,12 +371,5 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
 };
 
 Model.with = (...args) => args.reduce((superclass, mixin) => mixin(superclass), Model);
-
-RQL_METHODS.forEach((method) => {
-  Model[method] = function rqlProxy(...args) {
-    const query = (new Query(this)).table(this.name);
-    return query[method](...args);
-  };
-});
 
 module.exports = Model;
