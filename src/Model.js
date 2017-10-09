@@ -331,10 +331,10 @@ Model.setupRelations = async function modelSetupRelations(models) {
         relation: true
       }
       if (!has(model, 'indexes')) {
-        model.indexes = {};
+        model.indexes = [];
       }
 
-      model.indexes[key] = true;
+      model.indexes.push({ index: key });
     }
   });
 };
@@ -355,26 +355,30 @@ Model.ensureTable = async function modelEnsureTable(tableList) {
 Model.ensureIndexes = async function modelEnsureIndexes() {
   if (this.indexes) {
     const indexList = await this.indexList().run();
-    for (let [indexName, definition] of Object.entries(this.indexes)) {
-      if (!indexList.includes(indexName)) {
-        // Simple index
-        if (definition === true) {
-          if (has(this.schema, indexName)) {
-            await this.indexCreate(indexName, selectRow(indexName)).run();
-          } else {
-            throw new Error(`Unable to create simple index "${indexName}" on Model ${this.name} because that property does not exist on the Model's schema.`);
+
+    await Promise.all(this.indexes.map(async (entry) => {
+      const { index } = entry;
+
+      if (Array.isArray(index)) {
+        index.forEach((field) => {
+          if (!has(this.schema, field)) {
+            throw new Error(`${field} not found in schema`);
           }
-        // Compound index
-        } else if (Array.isArray(definition)) {
-          definition.forEach(property => {
-            if (!has(this.schema, property)) {
-              throw new Error(`Unable to create compound index "${indexName}" on Model ${this.name} because property '${property}' does not exist on the Model's schema.`);
-            }
-          });
-          await this.indexCreate(indexName, definition.map(selectRow)).run();
-        }
+        });
+
+        const indexName = index.join('_');
+        await this.indexCreate(indexName, index.map(selectRow)).run();
       }
-    }
+
+      if (typeof index === 'string') {
+        if (!has(this.schema, index)) {
+          throw new Error(`${index} not found in schema`);
+        }
+
+        await this.indexCreate(index, selectRow(index)).run();
+      }
+    }));
+
     await this.indexWait().run();
   }
 };

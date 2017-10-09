@@ -33,10 +33,11 @@ class Character extends Model {
     weaponType: String
   };
 
-  static indexes = {
-    name: true,
-    magicType_weaponType: ['magicType', 'weaponType']
-  };
+  static indexes = [{
+    index: 'name'
+  }, {
+    index: ['magicType', 'weaponType']
+  }];
 
   static relations = {
     hasOne: {
