@@ -369,6 +369,8 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
     await Promise.all(this.indexes.map(async (entry) => {
       const { index, multi, geo } = entry;
 
+      if (has(indexList, index)) return;
+
       if (Array.isArray(index)) {
         index.forEach((field) => {
           if (!has(this.schema, field)) {
