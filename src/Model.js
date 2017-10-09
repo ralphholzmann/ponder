@@ -6,6 +6,7 @@ const {
   lcfirst
 } = require('./util');
 const Query = require('./Query');
+const Point = require('./Point');
 
 const INSERT = Symbol('insert');
 const UPDATE = Symbol('update');
@@ -121,7 +122,7 @@ class Model {
       if (type === Date && typeof properties[key] === 'undefined' || allowNull && (properties[key] === null || properties[key] === undefined)) {
         this[key] = null;
       } else {
-        if (Array.isArray(type)) {
+        if (Array.isArray(type) && type !== Point) {
           const subType = type[0];
           if (subType === undefined) {
             this[key] = type(properties[key]);
@@ -366,7 +367,7 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
     const indexList = await this.indexList().run();
 
     await Promise.all(this.indexes.map(async (entry) => {
-      const { index, multi } = entry;
+      const { index, multi, geo } = entry;
 
       if (Array.isArray(index)) {
         index.forEach((field) => {
@@ -386,6 +387,8 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
 
         if (multi) {
           await this.indexCreate(index, selectRow(index), { multi: true }).run();
+        } else if (geo) {
+          await this.indexCreate(index, selectRow(index), { geo: true }).run();
         } else {
           await this.indexCreate(index, selectRow(index)).run();
         }

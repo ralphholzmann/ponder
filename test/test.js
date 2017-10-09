@@ -23,6 +23,11 @@ class Place extends Model {
     name: String,
     location: Point
   }
+
+  static indexes = [{
+    index: 'location',
+    geo: true
+  }]
 }
 
 class Character extends Model {
@@ -292,4 +297,15 @@ test('hasMany relations load correctly', async (t) => {
   t.is(present.places.length, 2);
   t.true(present.places[0] instanceof Place);
   t.true(present.places[1] instanceof Place);
+});
+
+test('geo indexes are created successfully', async (t) => {
+  const [leeneSquare] = await Place.filter({
+    name: 'Leene Square'
+  }).run();
+
+  const { location } = leeneSquare;
+
+  const nearest = await Place.getNearest(location, { index: 'location' }).run();
+  t.is(nearest.length, 1);
 });
