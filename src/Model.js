@@ -257,16 +257,6 @@ Model.applyMixins = function () {
   // Mixin ReQL
   this.ModelQuery = class extends Query {};
 
-  (function mixinReQL (ReQL, classDef) {
-    if (classDef.schema) {
-      Object.assign(schema, classDef.schema);
-    }
-
-    if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
-      mixinReQL(schema, Object.getPrototypeOf(classDef));
-    }
-  }(this, Object.getPrototypeOf(this)));
-
   RQL_METHODS.forEach((method) => {
     this[method] = function rqlProxy(...args) {
       const query = (new this.ModelQuery(this)).table(this.name);
@@ -274,6 +264,25 @@ Model.applyMixins = function () {
     };
   });
 
+  (function mixinReQL (Query, baseClass, classDef) {
+    if (classDef.ReQL) {
+      Object.assign(Query.prototype, classDef.ReQL);
+      Object.keys(classDef.ReQL).forEach(method => {
+        baseClass[method] = function rqlProxy(...args) {
+          const query = (new this.ModelQuery(this)).table(this.name);
+          return query[method](...args);
+        };
+      })
+    }
+
+    if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
+      mixinReQL(Query, baseClass, Object.getPrototypeOf(classDef));
+    }
+  }(this.ModelQuery, this, this));
+
+  this.run = async function () {
+    return (new this.ModelQuery(this)).table(this.name).run();
+  }
 };
 
 Model.forEachHasOne = async function (callback) {

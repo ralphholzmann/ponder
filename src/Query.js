@@ -3,6 +3,7 @@ const Database = require('./Database');
 const ModelCursor = require('./ModelCursor.js');
 const { RQL_METHODS } = require('./util');
 
+const BASE_PROTO = Object.getPrototypeOf(class {});
 const stack = Symbol('stack');
 const model = Symbol('model');
 const methods = Symbol('methods');
@@ -21,8 +22,19 @@ class Query {
   }
 
   async run() {
+    const query = await (async function runBeforeRunHooks (classDef, query) {
+      if (classDef && classDef.beforeRun) {
+        query = classDef.beforeRun(query);
+      }
+
+      if (classDef && Object.getPrototypeOf(classDef) !== BASE_PROTO) {
+        query = await runBeforeRunHooks(Object.getPrototypeOf(classDef), query);
+      }
+      return query;
+    }(this[model], this));
+
     const connection = await Database.connect();
-    const response = await this.toQuery().run(connection);
+    const response = await query.toQuery().run(connection);
 
     return this.processResponse(response);
   }

@@ -1,16 +1,26 @@
 module.exports = (superclass) => {
   class SoftDelete extends superclass {
+    static beforeRun (query) {
+      return query.filter({
+        deleted: null
+      });
+    }
+
     async delete() {
       this.deleted = new Date();
       await this.save();
     }
   }
 
-  SoftDelete.RQL = {
+  SoftDelete.ReQL = {
     delete: function () {
       return this.update({
         deleted: new Date()
       });
+    },
+
+    withDeleted: function () {
+      return this;
     }
   };
 
