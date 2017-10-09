@@ -38,6 +38,9 @@ class Character extends Model {
     index: 'name'
   }, {
     index: ['magicType', 'weaponType']
+  }, {
+    index: 'friends',
+    multi: true
   }];
 
   static relations = {
@@ -153,6 +156,14 @@ test('simple indexes are created successfully', async (t) => {
 test('compound indexes are created successfully', async (t) => {
   const [user] = await Character.getAll(['light', 'katana'], {
     index: 'magicType_weaponType'
+  }).run();
+  t.true(user instanceof Character);
+  t.is(user.name, 'Crono');
+});
+
+test('multi indexes are created successfully', async (t) => {
+  const [user] = await Character.getAll('Marle', {
+    index: 'friends'
   }).run();
   t.true(user instanceof Character);
   t.is(user.name, 'Crono');

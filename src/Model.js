@@ -366,7 +366,7 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
     const indexList = await this.indexList().run();
 
     await Promise.all(this.indexes.map(async (entry) => {
-      const { index } = entry;
+      const { index, multi } = entry;
 
       if (Array.isArray(index)) {
         index.forEach((field) => {
@@ -384,7 +384,11 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
           throw new Error(`${index} not found in schema`);
         }
 
-        await this.indexCreate(index, selectRow(index)).run();
+        if (multi) {
+          await this.indexCreate(index, selectRow(index), { multi: true }).run();
+        } else {
+          await this.indexCreate(index, selectRow(index)).run();
+        }
       }
     }));
 
