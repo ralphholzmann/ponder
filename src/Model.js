@@ -121,7 +121,16 @@ class Model {
       if (type === Date && typeof properties[key] === 'undefined' || allowNull && (properties[key] === null || properties[key] === undefined)) {
         this[key] = null;
       } else {
-        this[key] = type(properties[key]);
+        if (Array.isArray(type)) {
+          const subType = type[0];
+          if (subType === undefined) {
+            this[key] = type(properties[key]);
+          } else {
+            this[key] = properties[key].map(subType);
+          }
+        } else {
+          this[key] = type(properties[key]);
+        }
       }
     });
 

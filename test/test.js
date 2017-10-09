@@ -30,7 +30,8 @@ class Character extends Model {
     name: String,
     age: Number,
     magicType: String,
-    weaponType: String
+    weaponType: String,
+    friends: [String]
   };
 
   static indexes = [{
@@ -90,7 +91,8 @@ test('Saving a new model instance adds an id to the instance', async (t) => {
     name: 'Crono',
     age: 17,
     magicType: 'light',
-    weaponType: 'katana'
+    weaponType: 'katana',
+    friends: ['Marle']
   });
   const returnedUser = await user.save();
 
@@ -168,7 +170,8 @@ test('Changefeeds return instances of models', async (t) => {
       name: 'Marle',
       age: 16,
       magicType: 'ice',
-      weaponType: 'crossbow'
+      weaponType: 'crossbow',
+      friends: ['Marle', 'Crono']
     });
     user.save();
   });
@@ -183,7 +186,8 @@ test('Changefeeds `diff` correctly', async (t) => {
       name: 'Frog',
       age: 38,
       magicType: 'water',
-      weaponType: 'boardsword'
+      weaponType: 'boardsword',
+      friends: []
     });
 
     cursor.each((change) => {
