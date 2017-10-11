@@ -6,6 +6,7 @@ const {
   lcfirst
 } = require('./util');
 const Query = require('./Query');
+const Point = require('./Point');
 
 const INSERT = Symbol('insert');
 const UPDATE = Symbol('update');
@@ -121,7 +122,16 @@ class Model {
       if (type === Date && typeof properties[key] === 'undefined' || allowNull && (properties[key] === null || properties[key] === undefined)) {
         this[key] = null;
       } else {
-        this[key] = type(properties[key]);
+        if (Array.isArray(type) && type !== Point) {
+          const subType = type[0];
+          if (subType === undefined) {
+            this[key] = type(properties[key]);
+          } else {
+            this[key] = properties[key].map(subType);
+          }
+        } else {
+          this[key] = type(properties[key]);
+        }
       }
     });
 
@@ -331,10 +341,10 @@ Model.setupRelations = async function modelSetupRelations(models) {
         relation: true
       }
       if (!has(model, 'indexes')) {
-        model.indexes = {};
+        model.indexes = [];
       }
 
-      model.indexes[key] = true;
+      model.indexes.push({ index: key });
     }
   });
 };
@@ -355,26 +365,38 @@ Model.ensureTable = async function modelEnsureTable(tableList) {
 Model.ensureIndexes = async function modelEnsureIndexes() {
   if (this.indexes) {
     const indexList = await this.indexList().run();
-    for (let [indexName, definition] of Object.entries(this.indexes)) {
-      if (!indexList.includes(indexName)) {
-        // Simple index
-        if (definition === true) {
-          if (has(this.schema, indexName)) {
-            await this.indexCreate(indexName, selectRow(indexName)).run();
-          } else {
-            throw new Error(`Unable to create simple index "${indexName}" on Model ${this.name} because that property does not exist on the Model's schema.`);
+
+    await Promise.all(this.indexes.map(async (entry) => {
+      const { index, multi, geo } = entry;
+
+      if (has(indexList, index)) return;
+
+      if (Array.isArray(index)) {
+        index.forEach((field) => {
+          if (!has(this.schema, field)) {
+            throw new Error(`${field} not found in schema`);
           }
-        // Compound index
-        } else if (Array.isArray(definition)) {
-          definition.forEach(property => {
-            if (!has(this.schema, property)) {
-              throw new Error(`Unable to create compound index "${indexName}" on Model ${this.name} because property '${property}' does not exist on the Model's schema.`);
-            }
-          });
-          await this.indexCreate(indexName, definition.map(selectRow)).run();
+        });
+
+        const indexName = index.join('_');
+        await this.indexCreate(indexName, index.map(selectRow)).run();
+      }
+
+      if (typeof index === 'string') {
+        if (!has(this.schema, index)) {
+          throw new Error(`${index} not found in schema`);
+        }
+
+        if (multi) {
+          await this.indexCreate(index, selectRow(index), { multi: true }).run();
+        } else if (geo) {
+          await this.indexCreate(index, selectRow(index), { geo: true }).run();
+        } else {
+          await this.indexCreate(index, selectRow(index)).run();
         }
       }
-    }
+    }));
+
     await this.indexWait().run();
   }
 };

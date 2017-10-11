@@ -22,7 +22,7 @@ const has = (object, path) => {
   }
 
   return hasProperty;
-}
+};
 
 const get = (object, path) => {
   const [property, ...rest] = path.split('.');

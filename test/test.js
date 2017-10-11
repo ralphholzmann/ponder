@@ -23,6 +23,11 @@ class Place extends Model {
     name: String,
     location: Point
   }
+
+  static indexes = [{
+    index: 'location',
+    geo: true
+  }]
 }
 
 class Character extends Model {
@@ -30,13 +35,18 @@ class Character extends Model {
     name: String,
     age: Number,
     magicType: String,
-    weaponType: String
+    weaponType: String,
+    friends: [String]
   };
 
-  static indexes = {
-    name: true,
-    magicType_weaponType: ['magicType', 'weaponType']
-  };
+  static indexes = [{
+    index: 'name'
+  }, {
+    index: ['magicType', 'weaponType']
+  }, {
+    index: 'friends',
+    multi: true
+  }];
 
   static relations = {
     hasOne: {
@@ -89,7 +99,8 @@ test('Saving a new model instance adds an id to the instance', async (t) => {
     name: 'Crono',
     age: 17,
     magicType: 'light',
-    weaponType: 'katana'
+    weaponType: 'katana',
+    friends: ['Marle']
   });
   const returnedUser = await user.save();
 
@@ -155,6 +166,14 @@ test('compound indexes are created successfully', async (t) => {
   t.is(user.name, 'Crono');
 });
 
+test('multi indexes are created successfully', async (t) => {
+  const [user] = await Character.getAll('Marle', {
+    index: 'friends'
+  }).run();
+  t.true(user instanceof Character);
+  t.is(user.name, 'Crono');
+});
+
 test('Changefeeds return instances of models', async (t) => {
   const cursor = await Character.changes().run();
   await new Promise((resolve) => {
@@ -167,7 +186,8 @@ test('Changefeeds return instances of models', async (t) => {
       name: 'Marle',
       age: 16,
       magicType: 'ice',
-      weaponType: 'crossbow'
+      weaponType: 'crossbow',
+      friends: ['Marle', 'Crono']
     });
     user.save();
   });
@@ -182,7 +202,8 @@ test('Changefeeds `diff` correctly', async (t) => {
       name: 'Frog',
       age: 38,
       magicType: 'water',
-      weaponType: 'boardsword'
+      weaponType: 'boardsword',
+      friends: []
     });
 
     cursor.each((change) => {
@@ -276,4 +297,15 @@ test('hasMany relations load correctly', async (t) => {
   t.is(present.places.length, 2);
   t.true(present.places[0] instanceof Place);
   t.true(present.places[1] instanceof Place);
+});
+
+test('geo indexes are created successfully', async (t) => {
+  const [leeneSquare] = await Place.filter({
+    name: 'Leene Square'
+  }).run();
+
+  const { location } = leeneSquare;
+
+  const nearest = await Place.getNearest(location, { index: 'location' }).run();
+  t.is(nearest.length, 1);
 });
