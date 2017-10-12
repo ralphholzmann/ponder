@@ -1,7 +1,7 @@
 module.exports = (superclass) => {
   class SoftDelete extends superclass {
     static beforeRun (query) {
-      return query.filter({
+      return query.tapFilterRight('filter', {
         deleted: null
       });
     }

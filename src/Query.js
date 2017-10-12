@@ -1,20 +1,22 @@
 const r = require('rethinkdb');
 const Database = require('./Database');
 const ModelCursor = require('./ModelCursor.js');
-const { RQL_METHODS } = require('./util');
+const { RQL_METHODS, transforms } = require('./util');
 
 const BASE_PROTO = Object.getPrototypeOf(class {});
 const stack = Symbol('stack');
 const model = Symbol('model');
 const methods = Symbol('methods');
+const returns = Symbol('returns');
 
 const { hasOwnProperty } = Object.prototype;
 
 class Query {
-  constructor(Model, lastStack = [], lastMethods = []) {
+  constructor(Model, lastStack = [], lastMethods = [], returnTypes = ['r']) {
     this[model] = Model;
     this[stack] = lastStack;
     this[methods] = lastMethods;
+    this[returns] = returnTypes;
   }
 
   toQuery() {
@@ -67,9 +69,13 @@ module.exports.METHODS_SYMBOL = methods;
 
 RQL_METHODS.forEach((method) => {
   Query.prototype[method] = function reqlChain(...args) {
+    const previousReturnType = this[returns][this[returns].length - 1];
+    const nextReturnType = transforms.get(previousReturnType).get(method);
+
     this[stack].push(query => query[method](...args));
     this[methods].push(method);
-    return new this.constructor(this[model], this[stack].slice(0), this[methods].slice(0));
+    this[returns].push(nextReturnType);
+    return new this.constructor(this[model], this[stack].slice(0), this[methods].slice(0), this[returns].slice(0));
   };
 });
 
@@ -102,6 +108,51 @@ Query.prototype.populate = function reqlPopulate() {
   }
 
   return query;
-}
+};
+
+const INVALID_FILTER_METHODS = [
+  'indexCreate',
+  'indexDrop',
+  'indexList',
+  'indexRename',
+  'indexWait',
+  'insert',
+  'grant',
+  'config',
+  'rebalance',
+  'reconfigure',
+  'status',
+  'wait',
+  'tableCreate'
+];
+
+const FILTERABLE_TYPES = [
+  'table',
+  'stream',
+  'array',
+  'selection'
+];
+
+Query.prototype.tapFilterRight = function (args) {
+  if (this[methods].find(method => INVALID_FILTER_METHODS.includes(method))) return this;
+
+  let methodIndex;
+  for (let i = this[returns].length; i >= 0; i--) {
+    if (FILTERABLE_TYPES.includes(this[returns][i])) {
+      methodIndex = i - 1;
+      break;
+    }
+  }
+  const newStack = this[stack].slice(0);
+  const newMethods = this[methods].slice(0);
+  const newReturns = this[returns].slice(0);
+  console.log('method index', methodIndex, newMethods)
+  newStack.splice(methodIndex, 0, function (query) {
+    return query.filter(args);
+  });
+  newMethods.splice(methodIndex, 0, 'filter');
+  newReturns.splice(methodIndex, 0, transforms.get(this[returns][methodIndex + 1]).get('filter'));
+  return new this.constructor(this[model], newStack, newMethods, newReturns);
+};
 
 module.exports = Query;
