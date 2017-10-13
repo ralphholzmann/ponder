@@ -148,15 +148,18 @@ module.exports.transforms = new Map([
     ['orderBy', SELECTION_TYPE],
     ['slice', SELECTION_TYPE],
     ['nth', OBJECT_TYPE],
+    ['count', NUMBER_TYPE],
   ])],
   [SELECTION_TYPE, new Map([
     ['update', OBJECT_TYPE],
     ['replace', OBJECT_TYPE],
     ['delete', OBJECT_TYPE],
     ['filter', SELECTION_TYPE],
+    ['count', NUMBER_TYPE],
     ['orderBy', SELECTION_TYPE],
     ['slice', SELECTION_TYPE],
-    ['nth', SELECTION_TYPE]
+    ['nth', SELECTION_TYPE],
+    ['map', SELECTION_TYPE]
   ])],
   [SINGLE_SELECTION_TYPE, new Map([
     ['update', OBJECT_TYPE],
