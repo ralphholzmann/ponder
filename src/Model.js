@@ -369,7 +369,6 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
     await Promise.all(this.indexes.map(async (entry) => {
       const { index, multi, geo } = entry;
 
-      if (has(indexList, index)) return;
 
       if (Array.isArray(index)) {
         index.forEach((field) => {
@@ -379,13 +378,16 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
         });
 
         const indexName = index.join('_');
+        if (has(indexList, indexName)) return;
         await this.indexCreate(indexName, index.map(selectRow)).run();
       }
 
       if (typeof index === 'string') {
+        if (has(indexList, index)) return;
         if (!has(this.schema, index)) {
           throw new Error(`${index} not found in schema`);
         }
+
 
         if (multi) {
           await this.indexCreate(index, selectRow(index), { multi: true }).run();

@@ -1,20 +1,23 @@
 const r = require('rethinkdb');
 const Database = require('./Database');
 const ModelCursor = require('./ModelCursor.js');
-const { RQL_METHODS } = require('./util');
+const { RQL_METHODS, transforms } = require('./util');
 
 const BASE_PROTO = Object.getPrototypeOf(class {});
 const stack = Symbol('stack');
 const model = Symbol('model');
 const methods = Symbol('methods');
+const returns = Symbol('returns');
 
 const { hasOwnProperty } = Object.prototype;
 
 class Query {
-  constructor(Model, lastStack = [], lastMethods = []) {
+  constructor(Model, lastStack = [], lastMethods = [], returnTypes = ['r'], notes = {}) {
     this[model] = Model;
     this[stack] = lastStack;
     this[methods] = lastMethods;
+    this[returns] = returnTypes;
+    this.notes = notes;
   }
 
   toQuery() {
@@ -22,16 +25,17 @@ class Query {
   }
 
   async run() {
-    const query = await (async function runBeforeRunHooks (classDef, query) {
-      if (classDef && classDef.beforeRun) {
+    const query = await (async function runBeforeRunHooks (classDef, query, hooks) {
+      if (classDef && classDef.beforeRun && !hooks.includes(classDef.beforeRun)) {
+        hooks.push(classDef.beforeRun);
         query = classDef.beforeRun(query);
       }
 
       if (classDef && Object.getPrototypeOf(classDef) !== BASE_PROTO) {
-        query = await runBeforeRunHooks(Object.getPrototypeOf(classDef), query);
+        query = await runBeforeRunHooks(Object.getPrototypeOf(classDef), query, hooks);
       }
       return query;
-    }(this[model], this));
+    }(this[model], this, []));
 
     const connection = await Database.connect();
     const response = await query.toQuery().run(connection);
@@ -67,9 +71,17 @@ module.exports.METHODS_SYMBOL = methods;
 
 RQL_METHODS.forEach((method) => {
   Query.prototype[method] = function reqlChain(...args) {
+    const previousReturnType = this[returns][this[returns].length - 1];
+    if (!transforms.get(previousReturnType)) {
+      console.log(this[returns]);
+      console.log('prt', previousReturnType, this.toQuery().toString());
+    }
+    const nextReturnType = transforms.get(previousReturnType).get(method);
+
     this[stack].push(query => query[method](...args));
     this[methods].push(method);
-    return new this.constructor(this[model], this[stack].slice(0), this[methods].slice(0));
+    this[returns].push(nextReturnType);
+    return new this.constructor(this[model], this[stack].slice(0), this[methods].slice(0), this[returns].slice(0), this.notes);
   };
 });
 
@@ -102,6 +114,50 @@ Query.prototype.populate = function reqlPopulate() {
   }
 
   return query;
-}
+};
+
+const INVALID_FILTER_METHODS = [
+  'indexCreate',
+  'indexDrop',
+  'indexList',
+  'indexRename',
+  'indexWait',
+  'insert',
+  'grant',
+  'config',
+  'rebalance',
+  'reconfigure',
+  'status',
+  'wait',
+  'tableCreate'
+];
+
+const FILTERABLE_TYPES = [
+  'table',
+  'stream',
+  'array',
+  'selection'
+];
+
+Query.prototype.tapFilterRight = function (args) {
+  if (this[methods].find(method => INVALID_FILTER_METHODS.includes(method))) return this;
+
+  let methodIndex;
+  for (let i = this[returns].length; i >= 0; i--) {
+    if (FILTERABLE_TYPES.includes(this[returns][i])) {
+      methodIndex = i;
+      break;
+    }
+  }
+  const newStack = this[stack].slice(0);
+  const newMethods = this[methods].slice(0);
+  const newReturns = this[returns].slice(0);
+  newStack.splice(methodIndex, 0, function (query) {
+    return query.filter(args);
+  });
+  newMethods.splice(methodIndex, 0, 'filter');
+  newReturns.splice(methodIndex + 1, 0, transforms.get(this[returns][methodIndex]).get('filter'));
+  return new this.constructor(this[model], newStack, newMethods, newReturns, this.notes);
+};
 
 module.exports = Query;

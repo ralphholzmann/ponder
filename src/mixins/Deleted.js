@@ -1,7 +1,13 @@
+const SOFT_DELETE = Symbol('SoftDelete');
+
 module.exports = (superclass) => {
   class SoftDelete extends superclass {
     static beforeRun (query) {
-      return query.filter({
+      if (query.notes[SOFT_DELETE] && query.notes[SOFT_DELETE].withDeleted) {
+        return query;
+      }
+
+      return query.tapFilterRight({
         deleted: null
       });
     }
@@ -20,6 +26,8 @@ module.exports = (superclass) => {
     },
 
     withDeleted: function () {
+      this.notes[SOFT_DELETE] = {};
+      this.notes[SOFT_DELETE].withDeleted = true;
       return this;
     }
   };

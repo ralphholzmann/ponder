@@ -42,7 +42,6 @@ const VALUE_TYPE = 'value';
 const R_TYPE = 'r';
 const SELECTION_TYPE = 'selection';
 const SINGLE_SELECTION_TYPE = 'singleSelection';
-const SINGLE_ROW_SELECTION_TYPE = 'singleRowSelection';
 const TABLE_SLICE_TYPE = 'tableSlice';
 const STREAM_TYPE = 'stream';
 const SEQUENCE_TYPE = 'sequence';
@@ -66,6 +65,7 @@ module.exports.transforms = new Map([
     ['dbList', ARRAY_TYPE],
     ['tableCreate', OBJECT_TYPE],
     ['db', DB_TYPE],
+    ['table', TABLE_TYPE],
     ['map', ARRAY_TYPE],
     ['union', ARRAY_TYPE],
     ['group', GROUPED_STREAM_TYPE],
@@ -130,7 +130,7 @@ module.exports.transforms = new Map([
     ['replace', OBJECT_TYPE],
     ['delete', OBJECT_TYPE],
     ['sync', OBJECT_TYPE],
-    ['get', SINGLE_ROW_SELECTION_TYPE],
+    ['get', SINGLE_SELECTION_TYPE],
     ['getAll', SELECTION_TYPE],
     ['between', TABLE_SLICE_TYPE],
     ['orderBy', TABLE_SLICE_TYPE],
@@ -144,15 +144,22 @@ module.exports.transforms = new Map([
     ['reconfigure', OBJECT_TYPE],
     ['status', SELECTION_TYPE],
     ['wait', OBJECT_TYPE],
+    ['filter', SELECTION_TYPE],
+    ['orderBy', SELECTION_TYPE],
+    ['slice', SELECTION_TYPE],
+    ['nth', OBJECT_TYPE],
+    ['count', NUMBER_TYPE],
   ])],
   [SELECTION_TYPE, new Map([
     ['update', OBJECT_TYPE],
     ['replace', OBJECT_TYPE],
     ['delete', OBJECT_TYPE],
     ['filter', SELECTION_TYPE],
+    ['count', NUMBER_TYPE],
     ['orderBy', SELECTION_TYPE],
     ['slice', SELECTION_TYPE],
     ['nth', SELECTION_TYPE],
+    ['map', SELECTION_TYPE]
   ])],
   [SINGLE_SELECTION_TYPE, new Map([
     ['update', OBJECT_TYPE],

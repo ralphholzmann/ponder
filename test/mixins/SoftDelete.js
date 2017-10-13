@@ -17,15 +17,30 @@ test.before(async () => {
 
 Database.register(Person);
 
-test('Deleting from model definition sets deleted to a new date', async (t) => {
+test('Deleting from model instance sets deleted to a new date', async (t) => {
   const user = new Person({
     name: 'Ralph'
   });
   await user.save();
-  await Person.filter({
-    name: 'Ralph'
-  }).delete().run();
 
-  const [deletedUser] = await Person.run();
-  t.truthy(deletedUser.deleted);
+  t.is(await Person.count().run(), 1);
+
+  await user.delete();
+
+  t.is(await Person.count().run(), 0);
+  t.is(await Person.withDeleted().count().run(), 1);
+});
+
+test('Deleting from model class sets deleted to a new date', async (t) => {
+  const user = new Person({
+    name: 'Martin'
+  });
+  await user.save();
+
+  t.is(await Person.count().run(), 1);
+
+  await Person.delete().run();
+
+  t.is(await Person.count().run(), 0);
+  t.is(await Person.withDeleted().count().run(), 2);
 });
