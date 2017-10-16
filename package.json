@@ -1,7 +1,7 @@
 {
-  "name": "rethinkdb-model",
-  "version": "0.0.1",
-  "description": "ES6 RethinkDB ORM",
+  "name": "ponder",
+  "version": "1.0.0-alpha.1",
+  "description": "ES2017 RethinkDB ORM",
   "main": "src/index.js",
   "author": "Ralph Holzmann",
   "license": "MIT",
@@ -21,8 +21,14 @@
     "eslint-plugin-async-await": "0.0.0",
     "eslint-plugin-import": "^2.3.0",
     "eslint-plugin-jsx-a11y": "^5.0.3",
-    "eslint-plugin-react": "^7.0.1",
+    "eslint-plugin-react": "^7.0.1"
+  },
+  "optionalDependencies": {
     "thinky": "^2.3.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GodelSystems/ponder"
   },
   "ava": {
     "files": [
