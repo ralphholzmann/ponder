@@ -378,16 +378,18 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
         });
 
         const indexName = index.join('_');
-        if (has(indexList, indexName)) return;
+
+        if (indexList.indexOf(indexName) > -1) return;
+
         await this.indexCreate(indexName, index.map(selectRow)).run();
       }
 
       if (typeof index === 'string') {
-        if (has(indexList, index)) return;
-        if (!has(this.schema, index)) {
+        if (indexList.indexOf(index) > -1) return;
+
+        if (this.schema.indexOf(index) > -1) {
           throw new Error(`${index} not found in schema`);
         }
-
 
         if (multi) {
           await this.indexCreate(index, selectRow(index), { multi: true }).run();
