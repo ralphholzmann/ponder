@@ -108,6 +108,7 @@ class Model {
       const config = schema[key];
       let allowNull = false;
       let type;
+      let value = properties[key];
 
       if (config.type) {
         type = config.type;
@@ -115,22 +116,28 @@ class Model {
         if ('allowNull' in config) {
           allowNull = config.allowNull;
         }
+        if ('default' in config && typeof value === 'undefined') {
+          value = config.default;
+        }
       } else {
         type = config;
       }
 
-      if (type === Date && typeof properties[key] === 'undefined' || allowNull && (properties[key] === null || properties[key] === undefined)) {
+      if (type === Date && typeof value === 'undefined' || allowNull && (value === null || value === undefined)) {
         this[key] = null;
       } else {
         if (Array.isArray(type) && type !== Point) {
+          if (typeof value === 'undefined') {
+            value = [];
+          }
           const subType = type[0];
           if (subType === undefined) {
-            this[key] = type(properties[key]);
+            this[key] = type(value);
           } else {
-            this[key] = properties[key].map(subType);
+            this[key] = value.map(subType);
           }
         } else {
-          this[key] = type(properties[key]);
+          this[key] = type(value);
         }
       }
     });

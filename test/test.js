@@ -66,7 +66,7 @@ class Weapon extends Model {
   static schema = {
     name: String,
     type: String,
-    attack: Number
+    attack: { type: Number, default: 1 }
   }
 }
 
@@ -308,4 +308,26 @@ test('geo indexes are created successfully', async (t) => {
 
   const nearest = await Place.getNearest(location, { index: 'location' }).run();
   t.is(nearest.length, 1);
+});
+
+test('sets property to default value if property is undefined and default is set', async (t) => {
+  const weapon = new Weapon({
+    name: 'Mop',
+    type: 'Katana'
+  });
+  const returnedWeapon = await weapon.save();
+
+  t.is(returnedWeapon.attack, 1);
+});
+
+test('sets array proprety to empty array if array is empty', async (t) => {
+  const user = new Character({
+    name: 'Crono',
+    age: 17,
+    magicType: 'light',
+    weaponType: 'katana'
+  });
+  const returnedUser = await user.save();
+
+  t.truthy(returnedUser.id);
 });
