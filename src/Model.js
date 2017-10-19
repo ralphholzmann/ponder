@@ -387,7 +387,7 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
       if (typeof index === 'string') {
         if (indexList.indexOf(index) > -1) return;
 
-        if (this.schema.indexOf(index) > -1) {
+        if (Object.keys(this.schema).indexOf(index) === -1) {
           throw new Error(`${index} not found in schema`);
         }
 
