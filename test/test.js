@@ -32,7 +32,7 @@ class Place extends Model {
 
 class Character extends Model {
   static schema = {
-    name: String,
+    name: { type: String, unique: true },
     age: Number,
     magicType: String,
     weaponType: String,
@@ -308,4 +308,25 @@ test('geo indexes are created successfully', async (t) => {
 
   const nearest = await Place.getNearest(location, { index: 'location' }).run();
   t.is(nearest.length, 1);
+});
+
+
+test('unique property creates index table to enforce uniqueness', async (t) => {
+  const user = new Character({
+    name: 'Crono',
+    age: 17,
+    magicType: 'light',
+    weaponType: 'katana'
+  });
+  await user.save();
+
+  const duplicate = new Character({
+    name: 'Crono',
+    age: 17,
+    magicType: 'light',
+    weaponType: 'katana'
+  });
+
+  const error = await t.throws(duplicate.save());
+  t.is(error.message, 'name is not unique');
 });
