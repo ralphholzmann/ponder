@@ -42,7 +42,7 @@ Needs a locally running instance of rethinkdb for tests.
     - [x] Updating
       - [x] Track updated properties
   - [ ] Deleting
-  - [ ] Unique properties via lookup table
+  - [x] Unique properties via lookup table
   - [ ] Pre/Post hooks
     - [ ] Include old version in hooks
 - [x] Cursors
