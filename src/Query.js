@@ -25,7 +25,7 @@ class Query {
   }
 
   async run() {
-    const query = await (async function runBeforeRunHooks (classDef, query, hooks) {
+    const query = await (async function runBeforeRunHooks(classDef, query, hooks) {
       if (classDef && classDef.beforeRun && !hooks.includes(classDef.beforeRun)) {
         hooks.push(classDef.beforeRun);
         query = classDef.beforeRun(query);
@@ -44,6 +44,7 @@ class Query {
   }
 
   async processResponse(response) {
+    if (response === null) return response;
     const isArrayResult = Array.isArray(response) && typeof response.toArray === 'function';
     const methodList = this[methods];
 
@@ -55,12 +56,10 @@ class Query {
       // Changefeed
       if (methodList[methodList.length - 1] === 'changes') {
         return new ModelCursor(this[model], response);
-      } else {
-        const records = await response.toArray();
-        return records.map(record => new this[model](record));
       }
+      const records = await response.toArray();
+      return records.map(record => new this[model](record));
     }
-
     // insert, update, delete, replace
     return response;
   }

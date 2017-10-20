@@ -1,4 +1,5 @@
 import test from 'ava';
+import r from 'rethinkdb';
 import { Database, Model, Point } from '../src';
 
 class Era extends Model {
@@ -66,7 +67,7 @@ class Weapon extends Model {
   static schema = {
     name: String,
     type: String,
-    attack: Number
+    attack: { type: Number, default: 1 }
   }
 }
 
@@ -310,15 +311,66 @@ test('geo indexes are created successfully', async (t) => {
   t.is(nearest.length, 1);
 });
 
+test('sets property to default value if property is undefined and default is set', async (t) => {
+  const weapon = new Weapon({
+    name: 'Mop',
+    type: 'Katana'
+  });
+  const returnedWeapon = await weapon.save();
+
+  t.is(returnedWeapon.attack, 1);
+});
+
+test('sets array proprety to empty array if array is empty', async (t) => {
+  const user = new Character({
+    name: 'Robo',
+    age: 300,
+    weaponType: 'mechanicalArm'
+  });
+  const returnedUser = await user.save();
+
+  t.truthy(returnedUser.id);
+});
 
 test('unique property creates index table to enforce uniqueness', async (t) => {
+  const tableList = await Database.execute(r.db('test_db').tableList());
+  t.not(tableList.indexOf('Character_name_unique'), -1);
+});
+
+test('unique values creates static is[prop]Unique method and returns uniquess of given value', async (t) => {
+  t.false(await Character.isNameUnique('Crono'));
+  t.true(await Character.isNameUnique('Lavos'));
+});
+
+test('throws error when trying to create model with duplicate unique value and does not save duplicate model', async (t) => {
+  let cronos = await Character.filter({ name: 'Crono' }).run();
+  t.is(cronos.length, 1);
   const duplicate = new Character({
     name: 'Crono',
     age: 17,
     weaponType: 'katana',
     friends: ['Marle']
   });
-  await duplicate.save();
-  // const error = await t.throws(duplicate.save());
-  // t.is(error.message, 'name is not unique');
+  const error = await t.throws(duplicate.save());
+  t.is(error.message, '\'Character.name\' must be unique');
+  cronos = await Character.filter({ name: 'Crono' }).run();
+  t.is(cronos.length, 1);
+});
+
+test('updates unique lookup table when updating unique value, deletes old unique record', async (t) => {
+  const [frog] = await Character.filter({ name: 'Frog' }).run();
+  frog.name = 'Kaeru';
+  await frog.save();
+  const updated = await Character.get(frog.id).run();
+  t.is(updated.name, 'Kaeru');
+  t.true(await Character.isNameUnique('Frog'));
+});
+
+test('throws error when trying to update table with nonunique value', async (t) => {
+  const [character] = await Character.filter({ name: 'Robo' }).run();
+  character.name = 'Crono';
+  const error = await t.throws(character.save());
+  t.is(error.message, '\'Character.name\' must be unique');
+  const cronos = await Character.filter({ name: 'Crono' }).run();
+  t.is(cronos.length, 1);
 });
