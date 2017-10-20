@@ -216,6 +216,7 @@ class Model {
     const query = new Query(this);
     await query.table(name).get(this.id).update(this[pendingUpdate]).run();
     this[pendingUpdate] = {};
+    this[oldValues] = {};
     return this;
   }
 
