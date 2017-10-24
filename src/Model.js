@@ -16,6 +16,7 @@ const ROOT = Symbol('root');
 const HOOKS = Symbol('hooks');
 
 const pendingUpdate = Symbol('pendingUpdate');
+const oldValues = Symbol('oldValues');
 const defineProperties = Symbol('defineProperties');
 const defineRelations = Symbol('defineRelations');
 const isTesting = process.env.NODE_ENV === 'test';
@@ -25,6 +26,7 @@ const BASE_PROTO = Object.getPrototypeOf(class {});
 class Model {
   constructor(properties) {
     this[pendingUpdate] = {};
+    this[oldValues] = {};
     this[defineProperties]();
     this[defineRelations]();
 
@@ -38,6 +40,9 @@ class Model {
       Object.defineProperty(this, key, {
         enumerable: true,
         set(value) {
+          if (!this[oldValues][key]) {
+            this[oldValues][key] = currentValue;
+          }
           currentValue = value;
           this[pendingUpdate][key] = value;
         },
@@ -173,7 +178,6 @@ class Model {
       }
     }(this, this.constructor));
 
-
     if (has(this, 'id')) {
       await this[UPDATE](options);
     } else {
@@ -195,15 +199,31 @@ class Model {
   }
 
   async [UPDATE]() {
+    const { schema, name } = this.constructor;
+    const unique = Object.keys(schema).reduce((reduction, key) => {
+      if (schema[key].unique && this[pendingUpdate][key]) {
+        reduction.push({
+          key,
+          value: this[pendingUpdate][key].toLowerCase(),
+          oldValue: this[oldValues][key].toLowerCase()
+        });
+      }
+      return reduction;
+    }, []);
+    if (unique.length > 0) {
+      await this.constructor.createUniqueLookups(unique, name);
+    }
     const query = new Query(this);
-    await query.table(this.constructor.name).get(this.id).update(this[pendingUpdate]).run();
+    await query.table(name).get(this.id).update(this[pendingUpdate]).run();
     this[pendingUpdate] = {};
+    this[oldValues] = {};
     return this;
   }
 
   async [INSERT](options) {
     const { schema } = this.constructor;
     const payload = {};
+    const unique = [];
 
     options[STACK].add(this);
 
@@ -228,7 +248,14 @@ class Model {
 
     Object.keys(schema).forEach((key) => {
       payload[key] = this[key];
+      if (schema[key].unique) {
+        unique.push({ key, value: this[key].toLowerCase() });
+      }
     });
+
+    if (unique.length > 0) {
+      await this.constructor.createUniqueLookups(unique, this.constructor.name);
+    }
 
     const query = new Query(this);
     const result = await query.table(this.constructor.name).insert(payload).run();
@@ -254,6 +281,7 @@ class Model {
 
 Model.setup = async function modelSetup(tableList, models) {
   this.applyMixins();
+  await this.ensureUniqueLookupTables(tableList);
   await this.setupRelations(models);
   await this.ensureTable(tableList);
   await this.ensureIndexes();
@@ -410,6 +438,53 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
 
     await this.indexWait().run();
   }
+};
+
+Model.ensureUniqueLookupTables = async function modelEnsureUniqueLookupTables(tableList) {
+  const query = new Query(this);
+  const uniqueProperties = Object.keys(this.schema).reduce((list, key) => {
+    if (this.schema[key].unique) {
+      list.push(key);
+    }
+    return list;
+  }, []);
+  if (uniqueProperties.length === 0) return;
+  uniqueProperties.forEach(async (property) => {
+    const tableName = `${this.name}_${property}_unique`;
+    if (!tableList.includes(tableName)) {
+      const options = {};
+
+      if (isTesting) {
+        options.durability = 'hard';
+      }
+
+      await query.tableCreate(tableName, options).run();
+      this[`is${capitalize(property)}Unique`] = async (value) => {
+        const result = await new Query(this).table(tableName).get(value.toLowerCase()).run();
+        return !result;
+      };
+    }
+  });
+};
+
+Model.createUniqueLookups = async function createUniqueLookups(keys, model) {
+  const result = await Promise.all(keys.map(({ key, value: id }) => new Query(this).table(`${model}_${key}_unique`).insert({ id }).run()));
+  const errorIndex = result.findIndex(({ errors }) => errors > 0);
+  if (errorIndex > -1) {
+    await Promise.all(result.filter(({ errors }) => errors === 0).map((item, index) =>
+      new Query(this).table(`${model}_${result[index].key}_unique`)
+      .get(result[index].value)
+      .delete()
+      .run()
+    ));
+    throw new Error(`'${model}.${keys[errorIndex].key}' must be unique`);
+  }
+  await Promise.all(keys.filter(key => key.oldValue).map(({ key, oldValue: id }) =>
+    new Query(this).table(`${model}_${key}_unique`)
+    .get(id)
+    .delete()
+    .run()
+  ));
 };
 
 Model.with = (...args) => args.reduce((superclass, mixin) => mixin(superclass), Model);
