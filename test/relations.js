@@ -236,3 +236,25 @@ test('Can handle 3 way circular dependencies', async t => {
   t.is(d.eId, e.id);
   t.is(e.cId, c.id);
 });
+
+class Post extends Model {
+  static relations = {
+    hasMany: {
+      tags: {
+        model: 'Tag',
+        foreignKey: 'id'
+      }
+    }
+  };
+}
+
+class Tag extends Model {
+  static relations = {
+    hasMany: {
+      posts: {
+        model: 'Post',
+        foreignKey: 'id'
+      }
+    }
+  };
+}

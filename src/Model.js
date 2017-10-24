@@ -7,7 +7,6 @@ const UPDATE = Symbol('update');
 const STACK = Symbol('stack');
 const PENDING = Symbol('pending');
 const ROOT = Symbol('root');
-const HOOKS = Symbol('hooks');
 
 const pendingUpdate = Symbol('pendingUpdate');
 const oldValues = Symbol('oldValues');
