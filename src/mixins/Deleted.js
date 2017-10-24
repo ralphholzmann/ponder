@@ -1,8 +1,8 @@
 const SOFT_DELETE = Symbol('SoftDelete');
 
-module.exports = (superclass) => {
+module.exports = superclass => {
   class SoftDelete extends superclass {
-    static beforeRun (query) {
+    static beforeRun(query) {
       if (query.notes[SOFT_DELETE] && query.notes[SOFT_DELETE].withDeleted) {
         return query;
       }
@@ -19,13 +19,13 @@ module.exports = (superclass) => {
   }
 
   SoftDelete.ReQL = {
-    delete: function () {
+    delete: function() {
       return this.update({
         deleted: new Date()
       });
     },
 
-    withDeleted: function () {
+    withDeleted: function() {
       this.notes[SOFT_DELETE] = {};
       this.notes[SOFT_DELETE].withDeleted = true;
       return this;

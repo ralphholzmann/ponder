@@ -6,7 +6,9 @@
   "author": "Ralph Holzmann",
   "license": "MIT",
   "scripts": {
-    "test": "cross-env NODE_ENV='test' ava --serial --verbose --timeout=8s test"
+    "test": "cross-env NODE_ENV='test' ava --serial --verbose --timeout=8s test",
+    "lint": "eslint src test",
+    "prettier": "prettier --write \"{src,test}/**/*.js\""
   },
   "dependencies": {
     "rethinkdb": "^2.3.3"
@@ -18,10 +20,13 @@
     "cross-env": "^5.0.0",
     "eslint": "^3.19.0",
     "eslint-config-airbnb": "^15.0.1",
+    "eslint-config-prettier": "^2.6.0",
     "eslint-plugin-async-await": "0.0.0",
     "eslint-plugin-import": "^2.3.0",
     "eslint-plugin-jsx-a11y": "^5.0.3",
-    "eslint-plugin-react": "^7.0.1"
+    "eslint-plugin-prettier": "^2.3.1",
+    "eslint-plugin-react": "^7.0.1",
+    "prettier": "^1.7.4"
   },
   "optionalDependencies": {
     "thinky": "^2.3.8"

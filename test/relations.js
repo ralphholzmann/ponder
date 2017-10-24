@@ -4,7 +4,7 @@ import { Database, Model } from '../src';
 class Asset extends Model {
   static schema = {
     name: String
-  }
+  };
 
   static relations = {
     hasMany: {
@@ -13,7 +13,7 @@ class Asset extends Model {
         primaryKey: 'id'
       }
     }
-  }
+  };
 }
 
 class Quote extends Model {
@@ -25,7 +25,7 @@ class Quote extends Model {
     openPrice: Number,
     closePrice: Number,
     volume: Number
-  }
+  };
 
   static relations = {
     hasOne: {
@@ -34,7 +34,7 @@ class Quote extends Model {
         foreignKey: 'id'
       }
     }
-  }
+  };
 }
 
 class Exchange extends Model {
@@ -43,7 +43,7 @@ class Exchange extends Model {
     acronym: String,
     city: String,
     website: String
-  }
+  };
 
   static relations = {
     hasOne: {
@@ -52,7 +52,7 @@ class Exchange extends Model {
         foreignKey: 'id'
       }
     }
-  }
+  };
 }
 
 class Country extends Model {
@@ -60,14 +60,13 @@ class Country extends Model {
     name: String,
     code: String,
     iso: String
-  }
+  };
 }
 
 Database.register(Asset);
 Database.register(Quote);
 Database.register(Exchange);
 Database.register(Country);
-
 
 test.before(async () => {
   Database.config({
@@ -76,7 +75,7 @@ test.before(async () => {
   await Database.connect();
 });
 
-test('Can create complex relations before IDs exist', async (t) => {
+test('Can create complex relations before IDs exist', async t => {
   const asset = new Asset({
     name: 'Apple Inc.'
   });
@@ -86,7 +85,7 @@ test('Can create complex relations before IDs exist', async (t) => {
     ask: 153.21,
     bid: 154.21,
     lastPrice: 153.71,
-    openPrice: 153.60,
+    openPrice: 153.6,
     closePrice: 153.61,
     volume: 20000
   });
@@ -126,7 +125,7 @@ class A extends Model {
         foreignKey: 'id'
       }
     }
-  }
+  };
 }
 
 class B extends Model {
@@ -141,13 +140,13 @@ class B extends Model {
         foreignKey: 'id'
       }
     }
-  }
+  };
 }
 
 Database.register(A);
 Database.register(B);
 
-test('Can handle 1:1 circular dependencies', async (t) => {
+test('Can handle 1:1 circular dependencies', async t => {
   const a = new A({
     name: 'model a'
   });
@@ -177,7 +176,7 @@ class C extends Model {
         foreignKey: 'id'
       }
     }
-  }
+  };
 }
 
 class D extends Model {
@@ -192,7 +191,7 @@ class D extends Model {
         foreignKey: 'id'
       }
     }
-  }
+  };
 }
 
 class E extends Model {
@@ -207,14 +206,14 @@ class E extends Model {
         foreignKey: 'id'
       }
     }
-  }
+  };
 }
 
 Database.register(C);
 Database.register(D);
 Database.register(E);
 
-test('Can handle 3 way circular dependencies', async (t) => {
+test('Can handle 3 way circular dependencies', async t => {
   const c = new C({
     name: 'model c'
   });

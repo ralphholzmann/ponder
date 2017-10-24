@@ -6,7 +6,7 @@ import SoftDeleteMixin from '../src/mixins/Deleted';
 class Message extends Model.with(TimeStampMixin, SoftDeleteMixin) {
   static schema = {
     text: String
-  }
+  };
 }
 
 Database.register(Message);
@@ -18,7 +18,7 @@ test.before(async () => {
   await Database.connect();
 });
 
-test('Mixin augments schema correctly', async (t) => {
+test('Mixin augments schema correctly', async t => {
   t.true(Object.prototype.hasOwnProperty.call(Message.schema, 'text'));
   t.true(Object.prototype.hasOwnProperty.call(Message.schema, 'created'));
   t.true(Object.prototype.hasOwnProperty.call(Message.schema, 'updated'));

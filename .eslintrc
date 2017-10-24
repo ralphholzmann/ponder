@@ -1,9 +1,20 @@
 {
   "parser": "babel-eslint",
-  "extends": "airbnb",
-  "plugins": ["async-await"],
+  "extends": [
+    "airbnb",
+    "prettier"
+  ],
+  "plugins": [
+    "prettier"
+  ],
   "rules": {
-    "strict": 0,
-    "comma-dangle": ["error", "never"]
+    "comma-dangle": ["error", "never"],
+    "prettier/prettier": "error",
+    "no-param-reassign": "off",
+    "linebreak-style": ["error", "unix"]
+  },
+  "env": {
+    "node": true,
+    "es6": true
   }
 }

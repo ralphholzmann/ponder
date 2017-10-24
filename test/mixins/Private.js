@@ -13,8 +13,8 @@ class AppUser extends Model.with(PrivateMixin) {
       type: String,
       private: true
     }
-  }
-};
+  };
+}
 
 test.before(async () => {
   Database.config({
@@ -25,7 +25,7 @@ test.before(async () => {
 
 Database.register(AppUser);
 
-test('Private properties are hidden from payloads correctly', async (t) => {
+test('Private properties are hidden from payloads correctly', async t => {
   const appUser1 = new AppUser({
     name: 'Ralph',
     email: 'ralph@example.com',

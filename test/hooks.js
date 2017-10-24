@@ -7,19 +7,17 @@ const TWEET_LENGTH = 140;
 class Tweet extends Model.with(TimeStampMixin) {
   static schema = {
     text: String
-  }
+  };
 
-  static async beforeSave (tweet) {
+  static async beforeSave(tweet) {
     tweet.hookRan = true;
     if (tweet.text.length > TWEET_LENGTH) {
       throw new Error('Tweet is too long!');
     }
   }
 
-  static async afterSave () {
-
-  }
-};
+  static async afterSave() {}
+}
 
 test.before(async () => {
   Database.config({
@@ -30,7 +28,7 @@ test.before(async () => {
 
 Database.register(Tweet);
 
-test('beforeSave hook executes successfully', async (t) => {
+test('beforeSave hook executes successfully', async t => {
   const tweet = new Tweet({
     text: 'You have distracted from my creative process'
   });
@@ -41,7 +39,7 @@ test('beforeSave hook executes successfully', async (t) => {
   t.true(tweet.hookRan);
 });
 
-test('beforeSave hook throws successfully', async (t) => {
+test('beforeSave hook throws successfully', async t => {
   const tweet = new Tweet({
     text: `We the People of the United States, in Order to form a more perfect Union,
            establish Justice, insure domestic Tranquility, provide for the common

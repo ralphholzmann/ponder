@@ -1,6 +1,6 @@
 const r = require('rethinkdb');
 
-const Point = (args) => {
+const Point = args => {
   let x;
   let y;
   if (Array.isArray(args) && args.length === 2 && !isNaN(args[0]) && !isNaN(args[1])) {

@@ -1,6 +1,6 @@
 const NAMESPACE = Symbol('ProtectedMixin');
 
-module.exports = (superclass) => {
+module.exports = superclass => {
   class PrivateMixin extends superclass {
     setContext(context) {
       this[NAMESPACE] = {

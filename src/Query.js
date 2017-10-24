@@ -35,7 +35,7 @@ class Query {
         query = await runBeforeRunHooks(Object.getPrototypeOf(classDef), query, hooks);
       }
       return query;
-    }(this[model], this, []));
+    })(this[model], this, []);
 
     const connection = await Database.connect();
     const response = await query.toQuery().run(connection);
@@ -51,7 +51,7 @@ class Query {
     // Single record returned - `get` call
     if (hasOwnProperty.call(response, 'id')) {
       return new this[model](response);
-    // Cursor check -- probably a better way to check for this
+      // Cursor check -- probably a better way to check for this
     } else if (typeof response.next === 'function' && !isArrayResult) {
       // Changefeed
       if (methodList[methodList.length - 1] === 'changes') {
@@ -68,7 +68,7 @@ class Query {
 module.exports.STACK_SYMBOL = stack;
 module.exports.METHODS_SYMBOL = methods;
 
-RQL_METHODS.forEach((method) => {
+RQL_METHODS.forEach(method => {
   Query.prototype[method] = function reqlChain(...args) {
     const previousReturnType = this[returns][this[returns].length - 1];
     if (!transforms.get(previousReturnType)) {
@@ -80,7 +80,13 @@ RQL_METHODS.forEach((method) => {
     this[stack].push(query => query[method](...args));
     this[methods].push(method);
     this[returns].push(nextReturnType);
-    return new this.constructor(this[model], this[stack].slice(0), this[methods].slice(0), this[returns].slice(0), this.notes);
+    return new this.constructor(
+      this[model],
+      this[stack].slice(0),
+      this[methods].slice(0),
+      this[returns].slice(0),
+      this.notes
+    );
   };
 });
 
@@ -90,24 +96,31 @@ Query.prototype.populate = function reqlPopulate() {
 
   if (relations.hasOne) {
     for (let [property, definition] of Object.entries(relations.hasOne)) {
-      query = query.map(function (result) {
+      query = query.map(function(result) {
         return result.merge({
-          [property]: r.table(definition.model).getAll(result.getField(definition.key), {
-            index: definition.foreignKey
-          }).nth(0).default(null)
-        })
+          [property]: r
+            .table(definition.model)
+            .getAll(result.getField(definition.key), {
+              index: definition.foreignKey
+            })
+            .nth(0)
+            .default(null)
+        });
       });
     }
   }
 
   if (relations.hasMany) {
     for (let [property, definition] of Object.entries(relations.hasMany)) {
-      query = query.map(function (result) {
+      query = query.map(function(result) {
         return result.merge({
-          [property]: r.table(definition.model).getAll(result.getField(definition.primaryKey), {
-            index: definition.key
-          }).coerceTo('array')
-        })
+          [property]: r
+            .table(definition.model)
+            .getAll(result.getField(definition.primaryKey), {
+              index: definition.key
+            })
+            .coerceTo('array')
+        });
       });
     }
   }
@@ -131,14 +144,9 @@ const INVALID_FILTER_METHODS = [
   'tableCreate'
 ];
 
-const FILTERABLE_TYPES = [
-  'table',
-  'stream',
-  'array',
-  'selection'
-];
+const FILTERABLE_TYPES = ['table', 'stream', 'array', 'selection'];
 
-Query.prototype.tapFilterRight = function (args) {
+Query.prototype.tapFilterRight = function(args) {
   if (this[methods].find(method => INVALID_FILTER_METHODS.includes(method))) return this;
 
   let methodIndex;
@@ -151,7 +159,7 @@ Query.prototype.tapFilterRight = function (args) {
   const newStack = this[stack].slice(0);
   const newMethods = this[methods].slice(0);
   const newReturns = this[returns].slice(0);
-  newStack.splice(methodIndex, 0, function (query) {
+  newStack.splice(methodIndex, 0, function(query) {
     return query.filter(args);
   });
   newMethods.splice(methodIndex, 0, 'filter');

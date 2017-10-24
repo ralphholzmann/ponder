@@ -11,7 +11,7 @@ class Change {
       id: this.new_val.id
     };
 
-    Object.keys(this.Model.schema).forEach((key) => {
+    Object.keys(this.Model.schema).forEach(key => {
       if (this.old_val[key] !== this.new_val[key]) {
         delta[key] = this.new_val[key];
       }

@@ -16,19 +16,21 @@ class Era extends Model {
         primaryKey: 'id'
       }
     }
-  }
+  };
 }
 
 class Place extends Model {
   static schema = {
     name: String,
     location: Point
-  }
+  };
 
-  static indexes = [{
-    index: 'location',
-    geo: true
-  }]
+  static indexes = [
+    {
+      index: 'location',
+      geo: true
+    }
+  ];
 }
 
 class Character extends Model {
@@ -40,14 +42,18 @@ class Character extends Model {
     friends: [String]
   };
 
-  static indexes = [{
-    index: 'name'
-  }, {
-    index: ['magicType', 'weaponType']
-  }, {
-    index: 'friends',
-    multi: true
-  }];
+  static indexes = [
+    {
+      index: 'name'
+    },
+    {
+      index: ['magicType', 'weaponType']
+    },
+    {
+      index: 'friends',
+      multi: true
+    }
+  ];
 
   static relations = {
     hasOne: {
@@ -60,7 +66,7 @@ class Character extends Model {
         foreignKey: 'id'
       }
     }
-  }
+  };
 }
 
 class Weapon extends Model {
@@ -68,14 +74,14 @@ class Weapon extends Model {
     name: String,
     type: String,
     attack: { type: Number, default: 1 }
-  }
+  };
 }
 
 class Armor extends Model {
   static schema = {
     name: String,
     defense: Number
-  }
+  };
 }
 
 Database.register(Character);
@@ -95,7 +101,7 @@ test.after.always(async () => {
   await Database.teardown();
 });
 
-test('Saving a new model instance adds an id to the instance', async (t) => {
+test('Saving a new model instance adds an id to the instance', async t => {
   const user = new Character({
     name: 'Crono',
     age: 17,
@@ -128,7 +134,7 @@ test('Saving a new model instance adds an id to the instance', async (t) => {
   t.truthy(returnedArmor.id);
 });
 
-test('Queries return instances of models', async (t) => {
+test('Queries return instances of models', async t => {
   const [user] = await Character.filter({
     age: 17
   }).run();
@@ -138,7 +144,7 @@ test('Queries return instances of models', async (t) => {
   t.is(user.age, 17);
 });
 
-test('Saving an existing model updates correctly', async (t) => {
+test('Saving an existing model updates correctly', async t => {
   const [user] = await Character.filter({
     weaponType: 'katana'
   }).run();
@@ -151,7 +157,7 @@ test('Saving an existing model updates correctly', async (t) => {
   t.is(updatedUser.age, 18);
 });
 
-test('simple indexes are created successfully', async (t) => {
+test('simple indexes are created successfully', async t => {
   const [user] = await Character.getAll('Crono', {
     index: 'name'
   }).run();
@@ -159,7 +165,7 @@ test('simple indexes are created successfully', async (t) => {
   t.is(user.name, 'Crono');
 });
 
-test('compound indexes are created successfully', async (t) => {
+test('compound indexes are created successfully', async t => {
   const [user] = await Character.getAll(['light', 'katana'], {
     index: 'magicType_weaponType'
   }).run();
@@ -167,7 +173,7 @@ test('compound indexes are created successfully', async (t) => {
   t.is(user.name, 'Crono');
 });
 
-test('multi indexes are created successfully', async (t) => {
+test('multi indexes are created successfully', async t => {
   const [user] = await Character.getAll('Marle', {
     index: 'friends'
   }).run();
@@ -175,10 +181,10 @@ test('multi indexes are created successfully', async (t) => {
   t.is(user.name, 'Crono');
 });
 
-test('Changefeeds return instances of models', async (t) => {
+test('Changefeeds return instances of models', async t => {
   const cursor = await Character.changes().run();
-  await new Promise((resolve) => {
-    cursor.each((change) => {
+  await new Promise(resolve => {
+    cursor.each(change => {
       t.true(change.new_val instanceof Character);
       resolve();
     });
@@ -195,10 +201,10 @@ test('Changefeeds return instances of models', async (t) => {
   await cursor.close();
 });
 
-test('Changefeeds `diff` correctly', async (t) => {
+test('Changefeeds `diff` correctly', async t => {
   let count = 0;
   const cursor = await Character.changes().run();
-  await new Promise(async (resolve) => {
+  await new Promise(async resolve => {
     const user = new Character({
       name: 'Frog',
       age: 38,
@@ -207,7 +213,7 @@ test('Changefeeds `diff` correctly', async (t) => {
       friends: []
     });
 
-    cursor.each((change) => {
+    cursor.each(change => {
       if (count === 1) {
         const diff = change.diff();
         t.is(user.id, diff.id);
@@ -224,7 +230,7 @@ test('Changefeeds `diff` correctly', async (t) => {
   await cursor.close();
 });
 
-test('hasOne relations save correctly', async (t) => {
+test('hasOne relations save correctly', async t => {
   const [character] = await Character.filter({
     name: 'Crono'
   }).run();
@@ -245,10 +251,12 @@ test('hasOne relations save correctly', async (t) => {
   t.is(character.equippedArmorId, armor.id);
 });
 
-test('hasOne relations load correctly', async (t) => {
+test('hasOne relations load correctly', async t => {
   const [character] = await Character.filter({
     name: 'Crono'
-  }).populate().run();
+  })
+    .populate()
+    .run();
 
   t.true(character.equippedWeapon instanceof Weapon);
   t.is(character.equippedWeaponId, character.equippedWeapon.id);
@@ -257,7 +265,7 @@ test('hasOne relations load correctly', async (t) => {
   t.is(character.equippedArmorId, character.equippedArmor.id);
 });
 
-test('hasMany relations save correctly', async (t) => {
+test('hasMany relations save correctly', async t => {
   const era = new Era({
     name: 'present',
     year: 1000,
@@ -290,17 +298,19 @@ test('hasMany relations save correctly', async (t) => {
   t.is(truceInn.eraId, era.id);
 });
 
-test('hasMany relations load correctly', async (t) => {
+test('hasMany relations load correctly', async t => {
   const [present] = await Era.filter({
     name: 'present'
-  }).populate().run();
+  })
+    .populate()
+    .run();
 
   t.is(present.places.length, 2);
   t.true(present.places[0] instanceof Place);
   t.true(present.places[1] instanceof Place);
 });
 
-test('geo indexes are created successfully', async (t) => {
+test('geo indexes are created successfully', async t => {
   const [leeneSquare] = await Place.filter({
     name: 'Leene Square'
   }).run();
@@ -311,7 +321,7 @@ test('geo indexes are created successfully', async (t) => {
   t.is(nearest.length, 1);
 });
 
-test('sets property to default value if property is undefined and default is set', async (t) => {
+test('sets property to default value if property is undefined and default is set', async t => {
   const weapon = new Weapon({
     name: 'Mop',
     type: 'Katana'
@@ -321,7 +331,7 @@ test('sets property to default value if property is undefined and default is set
   t.is(returnedWeapon.attack, 1);
 });
 
-test('sets array proprety to empty array if array is empty', async (t) => {
+test('sets array proprety to empty array if array is empty', async t => {
   const user = new Character({
     name: 'Robo',
     age: 300,
@@ -332,17 +342,17 @@ test('sets array proprety to empty array if array is empty', async (t) => {
   t.truthy(returnedUser.id);
 });
 
-test('unique property creates index table to enforce uniqueness', async (t) => {
+test('unique property creates index table to enforce uniqueness', async t => {
   const tableList = await Database.execute(r.db('test_db').tableList());
   t.not(tableList.indexOf('Character_name_unique'), -1);
 });
 
-test('unique values creates static is[prop]Unique method and returns uniquess of given value', async (t) => {
+test('unique values creates static is[prop]Unique method and returns uniquess of given value', async t => {
   t.false(await Character.isNameUnique('Crono'));
   t.true(await Character.isNameUnique('Lavos'));
 });
 
-test('throws error when trying to create model with duplicate unique value and does not save duplicate model', async (t) => {
+test('throws error when trying to create model with duplicate unique value and does not save duplicate model', async t => {
   let cronos = await Character.filter({ name: 'Crono' }).run();
   t.is(cronos.length, 1);
   const duplicate = new Character({
@@ -352,12 +362,12 @@ test('throws error when trying to create model with duplicate unique value and d
     friends: ['Marle']
   });
   const error = await t.throws(duplicate.save());
-  t.is(error.message, '\'Character.name\' must be unique');
+  t.is(error.message, "'Character.name' must be unique");
   cronos = await Character.filter({ name: 'Crono' }).run();
   t.is(cronos.length, 1);
 });
 
-test('updates unique lookup table when updating unique value, deletes old unique record', async (t) => {
+test('updates unique lookup table when updating unique value, deletes old unique record', async t => {
   const [frog] = await Character.filter({ name: 'Frog' }).run();
   frog.name = 'Kaeru';
   await frog.save();
@@ -366,11 +376,11 @@ test('updates unique lookup table when updating unique value, deletes old unique
   t.true(await Character.isNameUnique('Frog'));
 });
 
-test('throws error when trying to update table with nonunique value', async (t) => {
+test('throws error when trying to update table with nonunique value', async t => {
   const [character] = await Character.filter({ name: 'Robo' }).run();
   character.name = 'Crono';
   const error = await t.throws(character.save());
-  t.is(error.message, '\'Character.name\' must be unique');
+  t.is(error.message, "'Character.name' must be unique");
   const cronos = await Character.filter({ name: 'Crono' }).run();
   t.is(cronos.length, 1);
 });
