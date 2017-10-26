@@ -99,7 +99,7 @@ class Model {
   }
 
   assign(properties) {
-    const { schema } = this.constructor;
+    const { schema, name } = this.constructor;
 
     if (has(properties, 'id')) {
       this.id = properties.id;
@@ -137,7 +137,7 @@ class Model {
           } else {
             this[key] = value.map(subType);
           }
-        } else {
+        } else if (value !== null || value !== undefined) {
           this[key] = type(value);
         }
       }
@@ -203,8 +203,8 @@ class Model {
       if (schema[key].unique && this[pendingUpdate][key]) {
         reduction.push({
           key,
-          value: this[pendingUpdate][key].toLowerCase(),
-          oldValue: this[oldValues][key].toLowerCase()
+          value: schema[key].type === String ? this[pendingUpdate][key].toLowerCase() : this[pendingUpdate][key],
+          oldValue: schema[key].type === String ? this[oldValues][key].toLowerCase() : this[oldValues][key]
         });
       }
       return reduction;
@@ -253,8 +253,8 @@ class Model {
 
     Object.keys(schema).forEach(key => {
       payload[key] = this[key];
-      if (schema[key].unique) {
-        unique.push({ key, value: this[key].toLowerCase() });
+      if (schema[key].unique && this[key]) {
+        unique.push({ key, value: schema[key].type === String ? this[key].toLowerCase() : this[key] });
       }
     });
 
@@ -451,15 +451,14 @@ Model.ensureIndexes = async function modelEnsureIndexes() {
 };
 
 Model.ensureUniqueLookupTables = async function modelEnsureUniqueLookupTables(tableList) {
-  const query = new Query(this);
   const uniqueProperties = Object.keys(this.schema).reduce((list, key) => {
     if (this.schema[key].unique) {
-      list.push(key);
+      list.push({ key, type: this.schema[key].type });
     }
     return list;
   }, []);
   if (uniqueProperties.length === 0) return;
-  uniqueProperties.forEach(async property => {
+  uniqueProperties.forEach(async ({ key: property, type }) => {
     const tableName = `${this.name}_${property}_unique`;
     if (!tableList.includes(tableName)) {
       const options = {};
@@ -468,14 +467,15 @@ Model.ensureUniqueLookupTables = async function modelEnsureUniqueLookupTables(ta
         options.durability = 'hard';
       }
 
-      await query.tableCreate(tableName, options).run();
       this[`is${capitalize(property)}Unique`] = async value => {
         const result = await new Query(this)
           .table(tableName)
-          .get(value.toLowerCase())
+          .get(type === String ? value.toLowerCase() : value)
           .run();
         return !result;
       };
+
+      await new Query(this).tableCreate(tableName, options).run();
     }
   });
 };
