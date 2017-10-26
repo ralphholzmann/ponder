@@ -238,6 +238,12 @@ test('Can handle 3 way circular dependencies', async t => {
 });
 
 class Post extends Model {
+  static schema = {
+    title: String,
+    body: String,
+    date: Date
+  };
+
   static relations = {
     hasMany: {
       tags: {
@@ -249,6 +255,10 @@ class Post extends Model {
 }
 
 class Tag extends Model {
+  static schema = {
+    name: String
+  };
+
   static relations = {
     hasMany: {
       posts: {
@@ -258,3 +268,30 @@ class Tag extends Model {
     }
   };
 }
+
+Database.register(Post);
+Database.register(Tag);
+
+test('Handles many to many relations correctly', async t => {
+  const post = new Post({
+    title: 'How to defeat Lavos, the easy way!',
+    body: 'Just kidding, there is no easy way.',
+    date: new Date()
+  });
+
+  const tag1 = new Tag({
+    name: 'troll'
+  });
+  const tag2 = new Tag({
+    name: 'lavos'
+  });
+
+  post.tags.push(tag1);
+  post.tags.push(tag2);
+
+  await post.save();
+
+  t.truthy(post.id);
+  t.truthy(tag1.id);
+  t.truthy(tag2.id);
+});
