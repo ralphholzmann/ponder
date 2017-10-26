@@ -37,10 +37,10 @@ class Character extends Model {
   static schema = {
     name: { type: String, unique: true },
     nickname: { type: String, allowNull: true, unique: true },
-    age: Number,
-    magicType: String,
-    weaponType: String,
-    friends: [String]
+    age: { type: Number, allowNull: true },
+    magicType: { type: String, allowNull: true },
+    weaponType: { type: String, allowNull: true },
+    friends: { type: [String], default: [] }
   };
 
   static indexes = [

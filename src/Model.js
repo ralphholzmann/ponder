@@ -99,7 +99,7 @@ class Model {
   }
 
   assign(properties) {
-    const { schema } = this.constructor;
+    const { schema, name } = this.constructor;
 
     if (has(properties, 'id')) {
       this.id = properties.id;
@@ -137,7 +137,7 @@ class Model {
           } else {
             this[key] = value.map(subType);
           }
-        } else {
+        } else if (value !== null || value !== undefined) {
           this[key] = type(value);
         }
       }
