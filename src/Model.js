@@ -86,7 +86,7 @@ class Model {
         set(value) {
           if (!Array.isArray(value)) {
             throw new Error(
-              // `'${property}' on ${this.constructor.name} instance must be an array of ${constructor.name} instances.`
+              `'${property}' on ${this.constructor.name} instance must be an array of ${constructor.name} instances.`
             );
           }
           observer = new Proxy(value, setHandler);
