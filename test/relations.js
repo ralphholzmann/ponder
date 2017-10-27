@@ -294,4 +294,8 @@ test('Handles many to many relations correctly', async t => {
   t.truthy(post.id);
   t.truthy(tag1.id);
   t.truthy(tag2.id);
+
+  const retrievedPost = await Post.get(post.id).populate().run();
+
+  t.is(post.id, retrievedPost.id);
 });
