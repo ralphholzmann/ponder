@@ -1,4 +1,5 @@
-const r = require('rethinkdb');
+/* eslint-disable no-use-before-define */
+const rethinkdb = require('rethinkdb');
 const Database = require('./Database');
 const ModelCursor = require('./ModelCursor.js');
 const { RQL_METHODS, transforms } = require('./util');
@@ -21,7 +22,7 @@ class Query {
   }
 
   toQuery() {
-    return this[stack].reduce((query, partial) => partial(query), r);
+    return this[stack].reduce((query, partial) => partial(query), rethinkdb);
   }
 
   async run() {
@@ -44,7 +45,7 @@ class Query {
   }
 
   async processResponse(response) {
-    if (response === null) return response;
+    if (response === null || this[model] === undefined) return response;
     const isArrayResult = Array.isArray(response) && typeof response.toArray === 'function';
     const methodList = this[methods];
 
@@ -98,7 +99,7 @@ Query.prototype.populate = function reqlPopulate() {
     for (let [property, definition] of Object.entries(relations.hasOne)) {
       query = query.map(function(result) {
         return result.merge({
-          [property]: r
+          [property]: rethinkdb
             .table(definition.model)
             .getAll(result.getField(definition.key), {
               index: definition.foreignKey
@@ -114,7 +115,7 @@ Query.prototype.populate = function reqlPopulate() {
     for (let [property, definition] of Object.entries(relations.hasMany)) {
       query = query.map(function(result) {
         return result.merge({
-          [property]: r
+          [property]: rethinkdb
             .table(definition.model)
             .getAll(result.getField(definition.primaryKey), {
               index: definition.key
@@ -166,5 +167,36 @@ Query.prototype.tapFilterRight = function(args) {
   newReturns.splice(methodIndex + 1, 0, transforms.get(this[returns][methodIndex]).get('filter'));
   return new this.constructor(this[model], newStack, newMethods, newReturns, this.notes);
 };
+
+Query.ensureTable = async tableName => {
+  const tableList = await r.tableList().run();
+  if (!tableList.includes(tableName)) {
+    await r.tableCreate(tableName).run();
+    await r
+      .table(tableName)
+      .wait()
+      .run();
+  }
+};
+
+Query.ensureSimpleIndex = async (tableName, property, options = { geo: false, multi: false }) => {
+  const indexList = await r
+    .table(tableName)
+    .indexList()
+    .run();
+
+  if (!indexList.includes(property)) {
+    await r
+      .table(tableName)
+      .indexCreate(property, options)
+      .run();
+    await r
+      .table(tableName)
+      .indexWait(property)
+      .run();
+  }
+};
+
+const r = new Query();
 
 module.exports = Query;

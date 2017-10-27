@@ -7,7 +7,6 @@ const UPDATE = Symbol('update');
 const STACK = Symbol('stack');
 const PENDING = Symbol('pending');
 const ROOT = Symbol('root');
-const HOOKS = Symbol('hooks');
 
 const pendingUpdate = Symbol('pendingUpdate');
 const oldValues = Symbol('oldValues');
@@ -292,7 +291,7 @@ class Model {
 Model.setup = async function modelSetup(tableList, models) {
   this.applyMixins();
   await this.ensureUniqueLookupTables(tableList);
-  await this.ensureTable(tableList, this.name);
+  await Query.ensureTable(this.name);
   await this.setupRelations(tableList, models);
   await this.ensureIndexes();
 };
@@ -356,8 +355,8 @@ Model.forEachHasMany = async function(callback) {
   }
 };
 
-Model.setupRelations = async function modelSetupRelations(tableList, models) {
-  this.forEachHasOne((definition, property) => {
+Model.setupRelations = async function modelSetupRelations(models) {
+  await this.forEachHasOne((definition, property) => {
     const key = `${property}${capitalize(definition.foreignKey)}`;
     definition.key = key;
     definition.constructor = models.get(definition.model);
@@ -371,11 +370,11 @@ Model.setupRelations = async function modelSetupRelations(tableList, models) {
     }
   });
 
-  this.forEachHasMany(async (definition, property) => {
+  await this.forEachHasMany(async (definition, property) => {
     const model = models.get(definition.model);
     let manyToMany;
 
-    model.forEachHasMany((definition, property) => {
+    await model.forEachHasMany((definition, property) => {
       if (models.get(definition.model) === this) {
         manyToMany = [definition, property, model];
       }
@@ -385,7 +384,7 @@ Model.setupRelations = async function modelSetupRelations(tableList, models) {
       const [, manyProperty, manyModel] = manyToMany;
       const tableName = [`${this.name}_${property}`, `${manyModel.name}_${manyProperty}`].sort().join('__');
 
-      await this.ensureTable(tableList, tableName);
+      await Query.ensureTable(tableName);
 
       definition.manyToMany = true;
       definition.myKey = `${lcfirst(this.name)}Id`;
@@ -393,7 +392,9 @@ Model.setupRelations = async function modelSetupRelations(tableList, models) {
       definition.keys = [definition.myKey, definition.relationKey].sort();
       definition.indexName = definition.keys.join('_');
 
-      await (new Query(this)).table(tableName).indexCreate(definition.indexName, definition.keys.map(selectRow)).run();
+      if (!(await (new Query(this)).table(tableName).indexList().run()).includes(definition.indexName)) {
+        await (new Query(this)).table(tableName).indexCreate(definition.indexName, definition.keys.map(selectRow)).run();
+      }
     } else {
       const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey)}`;
 
@@ -414,21 +415,6 @@ Model.setupRelations = async function modelSetupRelations(tableList, models) {
       }
     }
   });
-};
-
-Model.ensureTable = async function modelEnsureTable(tableList, name) {
-  const query = new Query(this);
-  if (!tableList.includes(name)) {
-    const options = {};
-
-    if (isTesting) {
-      options.durability = 'hard';
-    }
-
-    tableList.push(name);
-    await query.tableCreate(name, options).run();
-    return (new Query(this)).table(name).wait().run();
-  }
 };
 
 Model.ensureIndexes = async function modelEnsureIndexes() {
