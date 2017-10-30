@@ -13,13 +13,13 @@ Needs a locally running instance of rethinkdb for tests.
   - [x] Ensure indexes
     - [x] Single
     - [x] Compound
-    - [ ] Multi
-    - [ ] Geo
+    - [x] Multi
+    - [x] Geo
   - [ ] connection management API
 - [ ] Schema
   - [x] Type validation
   - [x] Define indexes
-  - [ ] Define relations without race conditions
+  - [x] Define relations without race conditions
     - [x] `hasOne`
     - [x] `hasMany`
     - [ ] two way `hasMany` (aka, `manyToMany`) requiring join table
@@ -29,7 +29,7 @@ Needs a locally running instance of rethinkdb for tests.
       - [x] multi level
     - [x] `hasMany`
       - [x] single level
-      - [ ] multi level
+      - [x] multi level
     - [ ] `tap` API allowing you to take control of the relation ReQL
     - [ ] API to allow you to choose which relations get loaded
   - [ ] Define virtuals
@@ -43,7 +43,7 @@ Needs a locally running instance of rethinkdb for tests.
       - [x] Track updated properties
   - [ ] Deleting
   - [x] Unique properties via lookup table
-  - [ ] Pre/Post hooks
+  - [x] Pre/Post hooks
     - [ ] Include old version in hooks
 - [x] Cursors
   - [x] Return model instances
@@ -55,8 +55,8 @@ Needs a locally running instance of rethinkdb for tests.
   - [x] Support
     - [x] `Model.with` API
     - [x] Recursive schema augmenting
-    - [ ] Query tapping
-    - [ ]
-  - [ ] SoftDelete
+    - [x] Query tapping
+      - [x] injectFilter
+  - [x] SoftDelete
   - [ ] Changelog
-  - [ ] Timestamp
+  - [x] Timestamp

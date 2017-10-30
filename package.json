@@ -36,19 +36,11 @@
     "url": "https://github.com/GodelSystems/ponder"
   },
   "ava": {
-    "files": [
-      "test/*js"
-    ],
-    "source": [
-      "src/*.js"
-    ],
+    "files": ["test/*js"],
+    "source": ["src/*.js"],
     "babel": {
-      "presets": [
-        "@ava/stage-4"
-      ],
-      "plugins": [
-        "transform-class-properties"
-      ]
+      "presets": ["@ava/stage-4"],
+      "plugins": ["transform-class-properties"]
     }
   }
 }
