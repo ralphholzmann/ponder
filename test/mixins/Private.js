@@ -1,6 +1,6 @@
 import test from 'ava';
 import { Database, Model } from '../../src';
-import PrivateMixin from '../../src/mixins/PrivateMixin.js';
+import PrivateMixin from '../../src/mixins/PrivateMixin';
 
 class AppUser extends Model.with(PrivateMixin) {
   static schema = {

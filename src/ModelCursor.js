@@ -24,16 +24,14 @@ class ModelCursor {
       const record = await this.cursor.next();
       const model = new this.Model(record);
       if (callback) {
-        callback(null, model);
-      } else {
-        return Promise.reject(model);
+        return callback(null, model);
       }
+      return Promise.reject(model);
     } catch (error) {
       if (callback) {
-        callback(error);
-      } else {
-        return Promise.reject(error);
+        return callback(error);
       }
+      return Promise.reject(error);
     }
   }
 

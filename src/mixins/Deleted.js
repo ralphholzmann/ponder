@@ -19,13 +19,13 @@ module.exports = superclass => {
   }
 
   SoftDelete.ReQL = {
-    delete: function() {
+    delete() {
       return this.update({
         deleted: new Date()
       });
     },
 
-    withDeleted: function() {
+    withDeleted() {
       this.notes[SOFT_DELETE] = {};
       this.notes[SOFT_DELETE].withDeleted = true;
       return this;

@@ -113,7 +113,7 @@ class Model {
   }
 
   assign(properties) {
-    const { schema, name } = this.constructor;
+    const { schema } = this.constructor;
 
     if (has(properties, 'id')) {
       this.id = properties.id;

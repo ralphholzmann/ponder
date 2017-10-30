@@ -1,9 +1,11 @@
 class Change {
   constructor(Model, change) {
-    const { old_val, new_val } = change;
+    const oldValue = change.old_val;
+    const newValue = change.new_val;
+
     this.Model = Model;
-    this.old_val = old_val === null ? null : new Model(old_val);
-    this.new_val = new_val === null ? null : new Model(new_val);
+    this.old_val = oldValue === null ? null : new Model(oldValue);
+    this.new_val = newValue === null ? null : new Model(newValue);
   }
 
   diff() {
