@@ -27,7 +27,7 @@ class Place extends Model {
 
   static indexes = [
     {
-      index: 'location',
+      properties: ['location'],
       geo: true
     }
   ];
@@ -45,13 +45,14 @@ class Character extends Model {
 
   static indexes = [
     {
-      index: 'name'
+      properties: ['name']
     },
     {
-      index: ['magicType', 'weaponType']
+      name: 'magicType_weaponType',
+      properties: ['magicType', 'weaponType']
     },
     {
-      index: 'friends',
+      properties: ['friends'],
       multi: true
     }
   ];

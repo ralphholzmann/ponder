@@ -108,7 +108,10 @@ module.exports.transforms = new Map([
       ['line', LINE_TYPE],
       ['point', POINT_TYPE],
       ['grant', OBJECT_TYPE],
-      ['wait', OBJECT_TYPE]
+      ['wait', OBJECT_TYPE],
+      ['tableCreate', OBJECT_TYPE],
+      ['tableDrop', OBJECT_TYPE],
+      ['tableList', ARRAY_TYPE]
     ])
   ],
   [
@@ -361,5 +364,23 @@ module.exports.selectRow = property => property.split('.').reduce((row, prop) =>
 module.exports.capitalize = str => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 module.exports.lcfirst = str => str.charAt(0).toLowerCase() + str.slice(1);
 module.exports.RQL_METHODS = getRecursivePrototypeKeys(r.db(''));
+module.exports.forEachAsync = async function forEachAsync(collection, iterator) {
+  if (collection) {
+    if (Array.isArray(collection)) {
+      for (let i = 0; i < collection.length; i += 1) {
+        await iterator(collection[i], i, collection);
+      }
+    } else {
+      for (const [key, value] of Object.entries(collection)) {
+        await iterator(value, key, collection);
+      }
+    }
+  }
+};
+module.exports.assert = (test, message) => {
+  if (process.env.NODE_ENV !== 'production' && !test()) {
+    throw new Error(message);
+  }
+};
 module.exports.get = get;
 module.exports.has = has;

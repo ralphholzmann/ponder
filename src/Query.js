@@ -2,7 +2,7 @@
 const rethinkdb = require('rethinkdb');
 const Database = require('./Database');
 const ModelCursor = require('./ModelCursor.js');
-const { RQL_METHODS, transforms } = require('./util');
+const { RQL_METHODS, transforms, selectRow, assert } = require('./util');
 
 const BASE_PROTO = Object.getPrototypeOf(class {});
 const stack = Symbol('stack');
@@ -13,11 +13,11 @@ const returns = Symbol('returns');
 const { hasOwnProperty } = Object.prototype;
 
 class Query {
-  constructor(Model, lastStack = [], lastMethods = [], returnTypes = ['r'], notes = {}) {
+  constructor(Model, lastStack = [], lastMethods = [], returnTypes = [], notes = {}) {
     this[model] = Model;
     this[stack] = lastStack;
-    this[methods] = lastMethods;
-    this[returns] = returnTypes;
+    this[methods] = lastMethods.length ? lastMethods : ['r'];
+    this[returns] = returnTypes.length ? returnTypes : ['r'];
     this.notes = notes;
   }
 
@@ -26,17 +26,21 @@ class Query {
   }
 
   async run() {
-    const query = await (async function runBeforeRunHooks(classDef, query, hooks) {
-      if (classDef && classDef.beforeRun && !hooks.includes(classDef.beforeRun)) {
-        hooks.push(classDef.beforeRun);
-        query = classDef.beforeRun(query);
-      }
+    let query = this;
 
-      if (classDef && Object.getPrototypeOf(classDef) !== BASE_PROTO) {
-        query = await runBeforeRunHooks(Object.getPrototypeOf(classDef), query, hooks);
-      }
-      return query;
-    })(this[model], this, []);
+    if (this[model]) {
+      query = await (async function runBeforeRunHooks(classDef, query, hooks) {
+        if (classDef && classDef.beforeRun && !hooks.includes(classDef.beforeRun)) {
+          hooks.push(classDef.beforeRun);
+          query = classDef.beforeRun(query);
+        }
+
+        if (classDef && Object.getPrototypeOf(classDef) !== BASE_PROTO) {
+          query = await runBeforeRunHooks(Object.getPrototypeOf(classDef), query, hooks);
+        }
+        return query;
+      })(this[model], this, []);
+    }
 
     const connection = await Database.connect();
     const response = await query.toQuery().run(connection);
@@ -73,21 +77,19 @@ RQL_METHODS.forEach(method => {
   Query.prototype[method] = function reqlChain(...args) {
     const previousReturnType = this[returns][this[returns].length - 1];
     if (!transforms.get(previousReturnType)) {
+      console.log('missing return type from', previousReturnType, 'to', method);
+      console.log(this[methods]);
       console.log(this[returns]);
-      console.log('prt', previousReturnType, this.toQuery().toString());
     }
     const nextReturnType = transforms.get(previousReturnType).get(method);
 
-    this[stack].push(query => query[method](...args));
-    this[methods].push(method);
-    this[returns].push(nextReturnType);
-    return new this.constructor(
-      this[model],
-      this[stack].slice(0),
-      this[methods].slice(0),
-      this[returns].slice(0),
-      this.notes
-    );
+    const newStack = this[stack].slice(0);
+    newStack.push(query => query[method](...args));
+    const newMethods = this[methods].slice(0);
+    newMethods.push(method);
+    const newReturns = this[returns].slice(0);
+    newReturns.push(nextReturnType);
+    return new this.constructor(this[model], newStack, newMethods, newReturns, this.notes);
   };
 });
 
@@ -179,24 +181,55 @@ Query.ensureTable = async tableName => {
   }
 };
 
-Query.ensureSimpleIndex = async (tableName, property, options = { geo: false, multi: false }) => {
+Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = false }) => {
   const indexList = await r
     .table(tableName)
     .indexList()
     .run();
 
-  if (!indexList.includes(property)) {
+  if (!indexList.includes(name)) {
+    const args = [];
+    const options = {
+      multi,
+      geo
+    };
+
+    // Simple index
+    if (properties.length === 1) {
+      // Single property
+      if (!properties[0].includes('.')) {
+        args.push(properties[0], options);
+        // Single nested property
+      } else {
+        assert(
+          () => !!name,
+          `Index name missing for nested property ${properties[0]} on ${tableName} model. Please add a name to this index definition.`
+        );
+        args.push(name, selectRow(properties[0]), options);
+      }
+      // Compound indexes
+    } else {
+      assert(
+        () => !!name,
+        `Index name missing for compound index on properties ${JSON.stringify(
+          properties
+        )} on ${tableName} model. Please add a name to this index definition.`
+      );
+      args.push(name, properties.map(selectRow), options);
+    }
+
     await r
       .table(tableName)
-      .indexCreate(property, options)
+      .indexCreate(...args)
       .run();
     await r
       .table(tableName)
-      .indexWait(property)
+      .indexWait()
       .run();
   }
 };
 
 const r = new Query();
+Query.r = r;
 
 module.exports = Query;

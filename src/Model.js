@@ -1,4 +1,4 @@
-const { RQL_METHODS, has, selectRow, capitalize, lcfirst } = require('./util');
+const { RQL_METHODS, get, has, capitalize, lcfirst, forEachAsync } = require('./util');
 const Query = require('./Query');
 const Point = require('./Point');
 
@@ -12,9 +12,9 @@ const pendingUpdate = Symbol('pendingUpdate');
 const oldValues = Symbol('oldValues');
 const defineProperties = Symbol('defineProperties');
 const defineRelations = Symbol('defineRelations');
-const isTesting = process.env.NODE_ENV === 'test';
 
 const BASE_PROTO = Object.getPrototypeOf(class {});
+const { r } = Query;
 
 class Model {
   constructor(properties) {
@@ -67,16 +67,26 @@ class Model {
       });
     });
 
-    this.constructor.forEachHasMany(({ key, primaryKey, constructor }, property) => {
-      const setHandler = {
-        set: (target, prop, value) => {
-          if (!isNaN(prop)) {
-            value[key] = this[primaryKey];
+    this.constructor.forEachHasMany(({ key, primaryKey, constructor, manyToMany }, property) => {
+      let setHandler;
+      if (manyToMany) {
+        setHandler = {
+          set: (target, prop, value) => {
+            target[prop] = value;
+            return true;
           }
-          target[prop] = value;
-          return true;
-        }
-      };
+        };
+      } else {
+        setHandler = {
+          set: (target, prop, value) => {
+            if (!isNaN(prop)) {
+              value[key] = this[primaryKey];
+            }
+            target[prop] = value;
+            return true;
+          }
+        };
+      }
 
       let observer = new Proxy([], setHandler);
 
@@ -211,8 +221,7 @@ class Model {
     if (unique.length > 0) {
       await this.constructor.createUniqueLookups(unique, name);
     }
-    const query = new Query(this);
-    await query
+    await r
       .table(name)
       .get(this.id)
       .update(this[pendingUpdate])
@@ -261,25 +270,27 @@ class Model {
       await this.constructor.createUniqueLookups(unique, this.constructor.name);
     }
 
-    const query = new Query(this);
-    const result = await query
+    const result = await r
       .table(this.constructor.name)
       .insert(payload)
       .run();
     this.id = result.generated_keys[0];
 
-    // Fix up circular references
-    await this.constructor.forEachHasMany(async ({ key, primaryKey }, property) => {
-      await Promise.all(
-        this[property].map(instance => {
-          instance[key] = this[primaryKey];
-          return instance.save(options);
-        })
-      );
+    await this.constructor.forEachHasMany(async ({ key, primaryKey, manyToMany, tableName }, property) => {
+      if (manyToMany) {
+      } else {
+        await Promise.all(
+          this[property].map(instance => {
+            instance[key] = this[primaryKey];
+            return instance.save(options);
+          })
+        );
+      }
     });
 
     options[STACK].delete(this);
 
+    // Fix up circular references
     if (options[ROOT] && options[PENDING]) {
       for (let update of options[PENDING]) {
         await update();
@@ -288,11 +299,15 @@ class Model {
   }
 }
 
+Model.getForEachAsync = async function(property, iterator) {
+  await forEachAsync(get(this, property), iterator);
+};
+
 Model.setup = async function modelSetup(tableList, models) {
   this.applyMixins();
   await this.ensureUniqueLookupTables(tableList);
   await Query.ensureTable(this.name);
-  await this.setupRelations(tableList, models);
+  await this.setupRelations(models);
   await this.ensureIndexes();
 };
 
@@ -356,7 +371,7 @@ Model.forEachHasMany = async function(callback) {
 };
 
 Model.setupRelations = async function modelSetupRelations(models) {
-  await this.forEachHasOne((definition, property) => {
+  this.forEachHasOne((definition, property) => {
     const key = `${property}${capitalize(definition.foreignKey)}`;
     definition.key = key;
     definition.constructor = models.get(definition.model);
@@ -374,7 +389,7 @@ Model.setupRelations = async function modelSetupRelations(models) {
     const model = models.get(definition.model);
     let manyToMany;
 
-    await model.forEachHasMany((definition, property) => {
+    model.forEachHasMany((definition, property) => {
       if (models.get(definition.model) === this) {
         manyToMany = [definition, property, model];
       }
@@ -382,7 +397,7 @@ Model.setupRelations = async function modelSetupRelations(models) {
 
     if (manyToMany) {
       const [, manyProperty, manyModel] = manyToMany;
-      const tableName = [`${this.name}_${property}`, `${manyModel.name}_${manyProperty}`].sort().join('__');
+      definition.tableName = [`${this.name}_${property}`, `${manyModel.name}_${manyProperty}`].sort().join('__');
 
       await Query.ensureTable(tableName);
 
@@ -392,9 +407,10 @@ Model.setupRelations = async function modelSetupRelations(models) {
       definition.keys = [definition.myKey, definition.relationKey].sort();
       definition.indexName = definition.keys.join('_');
 
-      if (!(await (new Query(this)).table(tableName).indexList().run()).includes(definition.indexName)) {
-        await (new Query(this)).table(tableName).indexCreate(definition.indexName, definition.keys.map(selectRow)).run();
-      }
+      await Query.ensureIndex(tableName, {
+        name: definition.indexName,
+        properties: definition.keys
+      });
     } else {
       const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey)}`;
 
@@ -411,57 +427,17 @@ Model.setupRelations = async function modelSetupRelations(models) {
           model.indexes = [];
         }
 
-        model.indexes.push({ index: key });
+        model.indexes.push({ properties: [key] });
       }
     }
   });
 };
 
 Model.ensureIndexes = async function modelEnsureIndexes() {
-  if (this.indexes) {
-    const indexList = await this.indexList().run();
-
-    await Promise.all(
-      this.indexes.map(async entry => {
-        const { index, multi, geo } = entry;
-
-        if (Array.isArray(index)) {
-          index.forEach(field => {
-            if (!has(this.schema, field)) {
-              throw new Error(`${field} not found in schema`);
-            }
-          });
-
-          const indexName = index.join('_');
-
-          if (indexList.indexOf(indexName) > -1) return;
-
-          await this.indexCreate(indexName, index.map(selectRow)).run();
-        }
-
-        if (typeof index === 'string') {
-          if (indexList.indexOf(index) > -1) return;
-
-          if (Object.keys(this.schema).indexOf(index) === -1) {
-            throw new Error(`${index} not found in schema`);
-          }
-
-          if (multi) {
-            await this.indexCreate(index, selectRow(index), { multi: true }).run();
-          } else if (geo) {
-            await this.indexCreate(index, selectRow(index), { geo: true }).run();
-          } else {
-            await this.indexCreate(index, selectRow(index)).run();
-          }
-        }
-      })
-    );
-
-    await this.indexWait().run();
-  }
+  await forEachAsync(this.indexes, async index => Query.ensureIndex(this.name, index));
 };
 
-Model.ensureUniqueLookupTables = async function modelEnsureUniqueLookupTables(tableList) {
+Model.ensureUniqueLookupTables = async function modelEnsureUniqueLookupTables() {
   const uniqueProperties = Object.keys(this.schema).reduce((list, key) => {
     if (this.schema[key].unique) {
       list.push({ key, type: this.schema[key].type });
@@ -471,30 +447,19 @@ Model.ensureUniqueLookupTables = async function modelEnsureUniqueLookupTables(ta
   if (uniqueProperties.length === 0) return;
   uniqueProperties.forEach(async ({ key: property, type }) => {
     const tableName = `${this.name}_${property}_unique`;
-    if (!tableList.includes(tableName)) {
-      const options = {};
-
-      if (isTesting) {
-        options.durability = 'hard';
-      }
-
-      this[`is${capitalize(property)}Unique`] = async value => {
-        const result = await new Query(this)
-          .table(tableName)
-          .get(type === String ? value.toLowerCase() : value)
-          .run();
-        return !result;
-      };
-
-      await new Query(this).tableCreate(tableName, options).run();
-    }
+    await Query.ensureTable(tableName);
+    this[`is${capitalize(property)}Unique`] = async value =>
+      !await r
+        .table(tableName)
+        .get(value.toLowerCase())
+        .run();
   });
 };
 
 Model.createUniqueLookups = async function createUniqueLookups(keys, model) {
   const result = await Promise.all(
     keys.map(({ key, value: id }) =>
-      new Query(this)
+      r
         .table(`${model}_${key}_unique`)
         .insert({ id })
         .run()
@@ -504,7 +469,7 @@ Model.createUniqueLookups = async function createUniqueLookups(keys, model) {
   if (errorIndex > -1) {
     await Promise.all(
       result.filter(({ errors }) => errors === 0).map((item, index) =>
-        new Query(this)
+        r
           .table(`${model}_${result[index].key}_unique`)
           .get(result[index].value)
           .delete()
@@ -515,7 +480,7 @@ Model.createUniqueLookups = async function createUniqueLookups(keys, model) {
   }
   await Promise.all(
     keys.filter(key => key.oldValue).map(({ key, oldValue: id }) =>
-      new Query(this)
+      r
         .table(`${model}_${key}_unique`)
         .get(id)
         .delete()

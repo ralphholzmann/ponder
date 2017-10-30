@@ -1,4 +1,5 @@
 const r = require('rethinkdb');
+const { forEachAsync } = require('./util');
 
 const DEFAULT_RETHINKDB_HOST = 'localhost';
 const DEFAULT_RETHINKDB_PORT = 28015;
@@ -56,7 +57,7 @@ class Database {
     }
     await this.ensureDatabase();
     const tableList = await this.execute(r.db(this.db).tableList());
-    await Promise.all(Array.from(this.models.values()).map(Model => Model.setup(tableList, this.models)));
+    await forEachAsync(Array.from(this.models.values()), Model => Model.setup(tableList, this.models));
   }
 
   static async teardown() {
