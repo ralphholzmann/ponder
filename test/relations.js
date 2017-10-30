@@ -272,7 +272,7 @@ class Tag extends Model {
 Database.register(Post);
 Database.register(Tag);
 
-test('Handles many to many relations correctly', async t => {
+test('Handles creation of many to many relations correctly', async t => {
   const post = new Post({
     title: 'How to defeat Lavos, the easy way!',
     body: 'Just kidding, there is no easy way.',
@@ -280,14 +280,19 @@ test('Handles many to many relations correctly', async t => {
   });
 
   const tag1 = new Tag({
-    name: 'troll'
+    name: 'tutorial'
   });
   const tag2 = new Tag({
     name: 'lavos'
   });
 
   post.tags.push(tag1);
+  t.is(post.tags[0], tag1);
+  t.is(tag1.posts[0], post);
+
   post.tags.push(tag2);
+  t.is(post.tags[1], tag2);
+  t.is(tag2.posts[0], post);
 
   await post.save();
 
@@ -295,7 +300,45 @@ test('Handles many to many relations correctly', async t => {
   t.truthy(tag1.id);
   t.truthy(tag2.id);
 
-  //const retrievedPost = await Post.get(post.id).populate().run();
+  const [retrievedPost] = await Post.filter({
+    title: 'How to defeat Lavos, the easy way!'
+  })
+    .populate()
+    .run();
 
-  //t.is(post.id, retrievedPost.id);
+  t.is(post.id, retrievedPost.id);
+  t.true(retrievedPost.tags.some(tag => tag.id === tag1.id));
+  t.true(retrievedPost.tags.some(tag => tag.id === tag2.id));
+
+  t.true(retrievedPost.tags[0] instanceof Tag);
+  t.true(retrievedPost.tags[1] instanceof Tag);
+
+  const [retrievedTag] = await Tag.filter({
+    name: 'tutorial'
+  })
+    .populate()
+    .run();
+
+  t.is(tag1.id, retrievedTag.id);
+  t.true(retrievedTag.posts[0] instanceof Post);
+});
+
+test('Handles updating of many to many relations correctly', async t => {
+  const [post] = await Post.filter({
+    title: 'How to defeat Lavos, the easy way!'
+  })
+    .populate()
+    .run();
+
+  t.is(post.tags.length, 2);
+  post.tags.pop();
+  await post.save();
+  t.is(post.tags.length, 1);
+
+  const [post2] = await Post.filter({
+    title: 'How to defeat Lavos, the easy way!'
+  })
+    .populate()
+    .run();
+  t.is(post2.tags.length, 1);
 });

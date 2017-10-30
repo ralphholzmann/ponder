@@ -67,12 +67,17 @@ class Model {
       });
     });
 
-    this.constructor.forEachHasMany(({ key, primaryKey, constructor, manyToMany }, property) => {
+    this.constructor.forEachHasMany(({ key, primaryKey, constructor, manyToMany, manyProperty }, property) => {
       let setHandler;
       if (manyToMany) {
         setHandler = {
           set: (target, prop, value) => {
             target[prop] = value;
+
+            if (!isNaN(prop) && !value[manyProperty].includes(this)) {
+              value[manyProperty].push(this);
+            }
+
             return true;
           }
         };
@@ -226,6 +231,38 @@ class Model {
       .get(this.id)
       .update(this[pendingUpdate])
       .run();
+
+    await this.constructor.forEachHasMany(
+      async ({ key, primaryKey, manyToMany, tableName, keys, myKey, relationKey, modelNames }, property) => {
+        if (manyToMany) {
+          // TODO(ralph): Make this smarter, only remove the relations that are actually removed instead of nuking and rewriting
+          await r
+            .table(tableName)
+            .getAll(this.id, {
+              index: myKey
+            })
+            .delete()
+            .run();
+          const relationIds = this[property].map(instance => instance.id);
+          await Promise.all(
+            relationIds.map(async relationId => {
+              const id = (this.constructor.name === modelNames[0] ? [this.id, relationId] : [relationId, this.id]).join(
+                '_'
+              );
+              await r
+                .table(tableName)
+                .insert({
+                  id,
+                  [myKey]: this.id,
+                  [relationKey]: relationId
+                })
+                .run();
+            })
+          );
+        }
+      }
+    );
+
     this[pendingUpdate] = {};
     this[oldValues] = {};
     return this;
@@ -276,17 +313,35 @@ class Model {
       .run();
     this.id = result.generated_keys[0];
 
-    await this.constructor.forEachHasMany(async ({ key, primaryKey, manyToMany, tableName }, property) => {
-      if (manyToMany) {
-      } else {
+    await this.constructor.forEachHasMany(
+      async ({ key, primaryKey, manyToMany, tableName, keys, myKey, relationKey, modelNames }, property) => {
         await Promise.all(
           this[property].map(instance => {
             instance[key] = this[primaryKey];
             return instance.save(options);
           })
         );
+
+        if (manyToMany) {
+          const relationIds = this[property].map(instance => instance.id);
+          await Promise.all(
+            relationIds.map(async relationId => {
+              const id = (this.constructor.name === modelNames[0] ? [this.id, relationId] : [relationId, this.id]).join(
+                '_'
+              );
+              await r
+                .table(tableName)
+                .insert({
+                  id,
+                  [myKey]: this.id,
+                  [relationKey]: relationId
+                })
+                .run();
+            })
+          );
+        }
       }
-    });
+    );
 
     options[STACK].delete(this);
 
@@ -399,17 +454,21 @@ Model.setupRelations = async function modelSetupRelations(models) {
       const [, manyProperty, manyModel] = manyToMany;
       definition.tableName = [`${this.name}_${property}`, `${manyModel.name}_${manyProperty}`].sort().join('__');
 
-      await Query.ensureTable(tableName);
+      await Query.ensureTable(definition.tableName);
 
       definition.manyToMany = true;
+      definition.manyProperty = manyProperty;
       definition.myKey = `${lcfirst(this.name)}Id`;
       definition.relationKey = `${lcfirst(manyModel.name)}Id`;
+      definition.modelNames = [this.name, manyModel.name].sort();
       definition.keys = [definition.myKey, definition.relationKey].sort();
-      definition.indexName = definition.keys.join('_');
+      definition.constructor = model;
 
-      await Query.ensureIndex(tableName, {
-        name: definition.indexName,
-        properties: definition.keys
+      await Query.ensureIndex(definition.tableName, {
+        properties: [definition.keys[0]]
+      });
+      await Query.ensureIndex(definition.tableName, {
+        properties: [definition.keys[1]]
       });
     } else {
       const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey)}`;

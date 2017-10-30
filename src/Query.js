@@ -115,16 +115,32 @@ Query.prototype.populate = function reqlPopulate() {
 
   if (relations.hasMany) {
     for (let [property, definition] of Object.entries(relations.hasMany)) {
-      query = query.map(function(result) {
-        return result.merge({
-          [property]: rethinkdb
-            .table(definition.model)
-            .getAll(result.getField(definition.primaryKey), {
-              index: definition.key
-            })
-            .coerceTo('array')
+      if (definition.manyToMany) {
+        query = query.map(function(result) {
+          return result.merge({
+            [property]: rethinkdb
+              .table(definition.tableName)
+              .getAll(result.getField('id'), {
+                index: definition.myKey
+              })
+              .coerceTo('array')
+              .map(function(result) {
+                return rethinkdb.table(definition.model).get(result.getField(definition.relationKey));
+              })
+          });
         });
-      });
+      } else {
+        query = query.map(function(result) {
+          return result.merge({
+            [property]: rethinkdb
+              .table(definition.model)
+              .getAll(result.getField(definition.primaryKey), {
+                index: definition.key
+              })
+              .coerceTo('array')
+          });
+        });
+      }
     }
   }
 
@@ -187,7 +203,7 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
     .indexList()
     .run();
 
-  if (!indexList.includes(name)) {
+  if (!indexList.includes(name || properties[0])) {
     const args = [];
     const options = {
       multi,
