@@ -165,11 +165,11 @@ const INVALID_FILTER_METHODS = [
 
 const FILTERABLE_TYPES = ['table', 'stream', 'array', 'selection'];
 
-Query.prototype.tapFilterRight = function(args) {
+Query.prototype.tapFilterRight = function tapFilterRight(args) {
   if (this[methods].find(method => INVALID_FILTER_METHODS.includes(method))) return this;
 
   let methodIndex;
-  for (let i = this[returns].length; i >= 0; i--) {
+  for (let i = this[returns].length; i >= 0; i -= 1) {
     if (FILTERABLE_TYPES.includes(this[returns][i])) {
       methodIndex = i;
       break;
