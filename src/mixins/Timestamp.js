@@ -8,7 +8,7 @@ module.exports = superclass => {
     updated: Date
   };
 
-  TimeStamp.beforeSave = function(record) {
+  TimeStamp.beforeSave = record => {
     if (!has(record, 'id')) {
       record.created = new Date();
     }

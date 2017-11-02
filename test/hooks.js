@@ -1,6 +1,6 @@
 import test from 'ava';
 import { Database, Model } from '../src';
-import TimeStampMixin from '../src/mixins/Timestamp.js';
+import TimeStampMixin from '../src/mixins/Timestamp';
 
 const TWEET_LENGTH = 140;
 
@@ -15,8 +15,6 @@ class Tweet extends Model.with(TimeStampMixin) {
       throw new Error('Tweet is too long!');
     }
   }
-
-  static async afterSave() {}
 }
 
 test.before(async () => {

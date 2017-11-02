@@ -1,6 +1,6 @@
 import test from 'ava';
 import { Database, Model } from '../../src';
-import SoftDeleteMixin from '../../src/mixins/Deleted.js';
+import SoftDeleteMixin from '../../src/mixins/Deleted';
 
 class Person extends Model.with(SoftDeleteMixin) {
   static schema = {

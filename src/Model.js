@@ -113,7 +113,7 @@ class Model {
   }
 
   assign(properties) {
-    const { schema, name } = this.constructor;
+    const { schema } = this.constructor;
 
     if (has(properties, 'id')) {
       this.id = properties.id;
@@ -140,20 +140,21 @@ class Model {
 
       if ((type === Date && typeof value === 'undefined') || (allowNull && (value === null || value === undefined))) {
         this[key] = null;
-      } else {
-        if (Array.isArray(type) && type !== Point) {
-          if (typeof value === 'undefined') {
-            value = [];
-          }
-          const subType = type[0];
-          if (subType === undefined) {
-            this[key] = type(value);
-          } else {
-            this[key] = value.map(subType);
-          }
-        } else if (value !== null || value !== undefined) {
-          this[key] = type(value);
-        }
+        return;
+      }
+
+      if (Array.isArray(type) && type !== Point) {
+        if (typeof value === 'undefined') value = [];
+
+        const subType = type[0];
+
+        this[key] = subType === undefined ? type(value) : value.map(subType);
+
+        return;
+      }
+
+      if (value !== null || value !== undefined) {
+        this[key] = type(value);
       }
     });
 
@@ -347,14 +348,14 @@ class Model {
 
     // Fix up circular references
     if (options[ROOT] && options[PENDING]) {
-      for (let update of options[PENDING]) {
+      options[PENDING].forEach(async update => {
         await update();
-      }
+      });
     }
   }
 }
 
-Model.getForEachAsync = async function(property, iterator) {
+Model.getForEachAsync = async function getForEachAsync(property, iterator) {
   await forEachAsync(get(this, property), iterator);
 };
 
@@ -366,7 +367,7 @@ Model.setup = async function modelSetup(tableList, models) {
   await this.ensureIndexes();
 };
 
-Model.applyMixins = function() {
+Model.applyMixins = function applyMixins() {
   // Mixin Schema
   (function mixinSchema(schema, classDef) {
     if (classDef.schema) {
@@ -409,7 +410,7 @@ Model.applyMixins = function() {
   };
 };
 
-Model.forEachHasOne = async function(callback) {
+Model.forEachHasOne = async function forEachHasOne(callback) {
   if (this.relations && this.relations.hasOne) {
     for (const [property, definition] of Object.entries(this.relations.hasOne)) {
       await callback(definition, property);
@@ -417,7 +418,7 @@ Model.forEachHasOne = async function(callback) {
   }
 };
 
-Model.forEachHasMany = async function(callback) {
+Model.forEachHasMany = async function forEachHasMany(callback) {
   if (this.relations && this.relations.hasMany) {
     for (const [property, definition] of Object.entries(this.relations.hasMany)) {
       await callback(definition, property);
@@ -504,7 +505,7 @@ Model.ensureUniqueLookupTables = async function modelEnsureUniqueLookupTables() 
     return list;
   }, []);
   if (uniqueProperties.length === 0) return;
-  uniqueProperties.forEach(async ({ key: property, type }) => {
+  uniqueProperties.forEach(async ({ key: property }) => {
     const tableName = `${this.name}_${property}_unique`;
     await Query.ensureTable(tableName);
     this[`is${capitalize(property)}Unique`] = async value =>

@@ -5,7 +5,7 @@ const Point = args => {
   let y;
   if (Array.isArray(args) && args.length === 2 && !isNaN(args[0]) && !isNaN(args[1])) {
     [x, y] = args;
-  } else if (args.type === 'Point' && args['$reql_type$'] === 'GEOMETRY') {
+  } else if (args.type === 'Point' && args.$reql_type$ === 'GEOMETRY') {
     [x, y] = args.coordinates;
   }
 
