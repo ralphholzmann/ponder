@@ -1,5 +1,3 @@
-module.exports = {
-  Model: require('./Model'),
-  Database: require('./Database'),
-  Point: require('./Point')
-};
+export { Model } from './Model';
+export { Database } from './Database';
+export { Point } from './Point';

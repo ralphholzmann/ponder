@@ -7,6 +7,7 @@ const DEFAULT_RETHINKDB_DB = 'test';
 const DEFAULT_RETHINKDB_USER = 'admin';
 const DEFAULT_RETHINKDB_PASSWORD = '';
 const isTesting = process.env.NODE_ENV === 'test';
+const NAMESPACES = {};
 
 class Database {
   static config({ host, port, db, user, password }) {
@@ -56,8 +57,12 @@ class Database {
       } catch (error) {}
     }
     await this.ensureDatabase();
-    const tableList = await this.execute(r.db(this.db).tableList());
-    await forEachAsync(Array.from(this.models.values()), Model => Model.setup(tableList, this.models));
+    await forEachAsync(Array.from(this.models.values()), Model => {
+      NAMESPACES[Model.name] = {
+        Model
+      };
+      Model.setup(NAMESPACES[Model.name], this.models);
+    });
   }
 
   static async teardown() {
