@@ -1,3 +1,4 @@
+/* @flow */
 import Query, { r } from './Query';
 import { get, forEachAsync, getInheritedPropertyList, capitalize } from './util.flow';
 
@@ -6,7 +7,7 @@ export default class Model extends Query {
     return forEachAsync(get(this, property), iterator);
   }
 
-  static async setup(namespace: {}, models: Map): Promise<void> {
+  static async setup(namespace: {}, models: Map<string, Model>): Promise<void> {
     this.applyMixins(namespace);
     await this.ensureUniqueLookupTables();
     await Query.ensureTable(this.name);
