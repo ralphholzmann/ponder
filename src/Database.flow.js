@@ -1,93 +1,81 @@
 /* @flow */
 import r from 'rethinkdb';
-import { forEachAsync } from './util';
+import Namespace from './Namespace.flow';
+import type Model from './Model.flow';
+import { Map } from 'immutable';
 
 const DEFAULT_RETHINKDB_HOST = 'localhost';
 const DEFAULT_RETHINKDB_PORT = 28015;
 const DEFAULT_RETHINKDB_DB = 'test';
 const DEFAULT_RETHINKDB_USER = 'admin';
 const DEFAULT_RETHINKDB_PASSWORD = '';
-const isTesting = process.env.NODE_ENV === 'test';
-const NAMESPACES = {};
 
 type config = {
   host: string,
   port: number,
   db: string,
   user: string,
-  password: string
+  password: string,
+  getConnection: (queryNumber: number) => Promise<r.Connection>
 };
 
-class Database {
+export default class Database {
   host: string;
   port: number;
   db: string;
   user: string;
   password: string;
   connection: {};
+  models: Map<string, Model>;
+  namespaces: Map<string, Namespace>;
+  getConnection: (queryNumber: number) => Promise<r.Connection>;
+  queryNumber: number;
 
-  constructor({ host, port, db, user, password }: config) {
+  constructor({ host, port, db, user, password, getConnection }: config) {
     this.host = host || DEFAULT_RETHINKDB_HOST;
     this.port = port || DEFAULT_RETHINKDB_PORT;
     this.db = db || DEFAULT_RETHINKDB_DB;
     this.user = user || DEFAULT_RETHINKDB_USER;
     this.password = password || DEFAULT_RETHINKDB_PASSWORD;
+    this.getConnection = getConnection || this.getConnection;
+    this.models = new Map();
+    this.queryNumber = 0;
   }
 
-  async connect(): Promise<void> {
-    if (this.connection === undefined) {
+  async getConnection(): Promise<r.Connection> {
+    if (!this.connection) {
       const { host, port, db, user, password } = this;
       this.connection = await r.connect({ host, port, db, user, password });
-      await this.setup();
     }
     return this.connection;
   }
 
-  async setup() {
-    if (isTesting) {
-      try {
-        await this.execute(r.dbDrop(this.db));
-      } catch (error) {}
-    }
+  async connect(): Promise<void> {
     await this.ensureDatabase();
-    await forEachAsync(Array.from(this.models.values()), Model => {
-      NAMESPACES[Model.name] = {
-        Model
-      };
-      Model.setup(NAMESPACES[Model.name], this.models);
-    });
+    await Array.from(this.models.values()).reduce(async (nil, model) => {
+      this.namespaces = this.namespaces.set(model.name, new Namespace(model));
+      await model.setup(this.namespaces.get(model.name), this.models);
+    }, null);
   }
 
-  async execute(query) {
-    const connection = await this.connect();
+  async execute(query: r.Operation<any>): Promise<string[]> {
+    const connection = await this.getConnection((this.queryNumber += 1));
     return query.run(connection);
   }
 
-  async disconnect() {
-    const connection = await this.connect();
+  async disconnect(): Promise<void> {
+    const connection = await this.getConnection((this.queryNumber += 1));
     await connection.close();
-    this.connection = null;
   }
 
-  register(Model) {
-    this.models.set(Model.name, Model);
+  register(model: Model): void {
+    this.models.set(model.name, model);
   }
 
-  async ensureDatabase() {
+  async ensureDatabase(): Promise<void> {
     const list = await this.execute(r.dbList());
     if (!list.includes(this.db)) {
       await this.execute(r.dbCreate(this.db));
     }
   }
-
-  async teardown() {
-    if (isTesting) {
-      await this.execute(r.dbDrop(this.db));
-    }
-    await this.disconnect();
-  }
 }
-
-Database.models = new Map();
-
-module.exports = Database;

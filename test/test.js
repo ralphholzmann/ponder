@@ -1,6 +1,7 @@
 import test from 'ava';
 import r from 'rethinkdb';
-import { Database, Model, Point } from '../src';
+import { Model, Point } from '../lib';
+import db from './lib/database';
 
 class Era extends Model {
   static schema = {
@@ -93,14 +94,11 @@ Database.register(Era);
 Database.register(Place);
 
 test.before(async () => {
-  Database.config({
-    db: 'test_db'
-  });
-  await Database.connect();
+  await db.connect();
 });
 
 test.after.always(async () => {
-  await Database.teardown();
+  await db.teardown();
 });
 
 test('Saving a new model instance adds an id to the instance', async t => {
