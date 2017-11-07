@@ -2,7 +2,6 @@
 import r from 'rethinkdb';
 import Namespace from './Namespace.flow';
 import type Model from './Model.flow';
-import { Map } from 'immutable';
 
 const DEFAULT_RETHINKDB_HOST = 'localhost';
 const DEFAULT_RETHINKDB_PORT = 28015;
@@ -25,10 +24,10 @@ export default class Database {
   db: string;
   user: string;
   password: string;
-  connection: {};
+  connection: r.Connection;
   models: Map<string, Model>;
   namespaces: Map<string, Namespace>;
-  getConnection: (queryNumber: number) => Promise<r.Connection>;
+  getUserDefinedConnection: (queryNumber: number) => Promise<r.Connection>;
   queryNumber: number;
 
   constructor({ host, port, db, user, password, getConnection }: config) {
@@ -37,13 +36,16 @@ export default class Database {
     this.db = db || DEFAULT_RETHINKDB_DB;
     this.user = user || DEFAULT_RETHINKDB_USER;
     this.password = password || DEFAULT_RETHINKDB_PASSWORD;
-    this.getConnection = getConnection || this.getConnection;
+    this.getUserDefinedConnection = getConnection;
     this.models = new Map();
     this.queryNumber = 0;
   }
 
   async getConnection(): Promise<r.Connection> {
-    if (!this.connection) {
+    this.queryNumber += 1;
+    if (typeof this.getUserDefinedConnection === 'function') {
+      return this.getUserDefinedConnection(this.queryNumber);
+    } else if (!this.connection) {
       const { host, port, db, user, password } = this;
       this.connection = await r.connect({ host, port, db, user, password });
     }
@@ -53,23 +55,31 @@ export default class Database {
   async connect(): Promise<void> {
     await this.ensureDatabase();
     await Array.from(this.models.values()).reduce(async (nil, model) => {
-      this.namespaces = this.namespaces.set(model.name, new Namespace(model));
       await model.setup(this.namespaces.get(model.name), this.models);
     }, null);
   }
 
   async execute(query: r.Operation<any>): Promise<string[]> {
-    const connection = await this.getConnection((this.queryNumber += 1));
+    const connection = await this.getConnection();
     return query.run(connection);
   }
 
   async disconnect(): Promise<void> {
-    const connection = await this.getConnection((this.queryNumber += 1));
+    const connection = await this.getConnection();
     await connection.close();
   }
 
   register(model: Model): void {
-    this.models.set(model.name, model);
+    const namespace = new Namespace(model);
+    this.namespaces.set(model.name, namespace);
+
+    this.models.set(
+      model.name,
+      class extends model {
+        static db = this;
+        static namespace = namespace;
+      }
+    );
   }
 
   async ensureDatabase(): Promise<void> {

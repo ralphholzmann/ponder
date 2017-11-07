@@ -87,11 +87,11 @@ class Armor extends Model {
   };
 }
 
-Database.register(Character);
-Database.register(Weapon);
-Database.register(Armor);
-Database.register(Era);
-Database.register(Place);
+db.register(Character);
+db.register(Weapon);
+db.register(Armor);
+db.register(Era);
+db.register(Place);
 
 test.before(async () => {
   await db.connect();
@@ -343,7 +343,7 @@ test('sets array proprety to empty array if array is empty', async t => {
 });
 
 test('unique property creates index table to enforce uniqueness', async t => {
-  const tableList = await Database.execute(r.db('test_db').tableList());
+  const tableList = await db.execute(r.db('test_db').tableList());
   t.not(tableList.indexOf('Character_name_unique'), -1);
 });
 

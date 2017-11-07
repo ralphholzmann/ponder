@@ -10,5 +10,6 @@
         "exclude": ["transform-regenerator"]
       }
     ]
-  ]
+  ],
+  "plugins": ["transform-class-properties", "babel-plugin-transform-object-rest-spread"]
 }

@@ -1,17 +1,13 @@
 {
   "parser": "babel-eslint",
-  "extends": [
-    "airbnb",
-    "prettier"
-  ],
-  "plugins": [
-    "prettier"
-  ],
+  "extends": ["airbnb", "prettier"],
+  "plugins": ["prettier"],
   "rules": {
     "comma-dangle": ["error", "never"],
     "prettier/prettier": "error",
     "no-param-reassign": "off",
-    "linebreak-style": ["error", "unix"]
+    "linebreak-style": ["error", "unix"],
+    "no-restricted-syntax": "off"
   },
   "env": {
     "node": true,

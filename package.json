@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "babel-preset-env": "^1.6.1",
+    "debug": "^3.1.0",
     "immutable": "^3.8.2",
     "rethinkdb": "^2.3.3"
   },
@@ -23,6 +24,7 @@
     "babel-cli": "^6.26.0",
     "babel-eslint": "^7.2.3",
     "babel-plugin-transform-class-properties": "^6.24.1",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "babel-preset-flow": "^6.23.0",
     "cross-env": "^5.0.0",
     "eslint": "^3.19.0",
@@ -44,11 +46,19 @@
     "url": "https://github.com/GodelSystems/ponder"
   },
   "ava": {
-    "files": ["test/*js"],
-    "source": ["src/*.js"],
+    "files": [
+      "test/*js"
+    ],
+    "source": [
+      "src/*.js"
+    ],
     "babel": {
-      "presets": ["@ava/stage-4"],
-      "plugins": ["transform-class-properties"]
+      "presets": [
+        "@ava/stage-4"
+      ],
+      "plugins": [
+        "transform-class-properties"
+      ]
     }
   }
 }

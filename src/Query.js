@@ -1,104 +1,71 @@
+/* @flow */
 /* eslint-disable no-use-before-define */
-const rethinkdb = require('rethinkdb');
-const Database = require('./Database');
-const ModelCursor = require('./ModelCursor.js');
-const { RQL_METHODS, transforms, selectRow, assert } = require('./util');
-
-const BASE_PROTO = Object.getPrototypeOf(class {});
-const stack = Symbol('stack');
-const model = Symbol('model');
-const methods = Symbol('methods');
-const returns = Symbol('returns');
+import rethinkdb from 'rethinkdb';
+import ModelCursor from './ModelCursor';
+import { transforms, selectRow, assert } from './util';
+import { getInheritedPropertyList, REQL_METHODS } from './util.flow';
+import type Model from './Model.flow';
 
 const { hasOwnProperty } = Object.prototype;
 
-class Query {
-  constructor(Model, lastStack = [], lastMethods = [], returnTypes = [], notes = {}) {
-    this[model] = Model;
-    this[stack] = lastStack;
-    this[methods] = lastMethods.length ? lastMethods : ['r'];
-    this[returns] = returnTypes.length ? returnTypes : ['r'];
-    this.notes = notes;
-  }
-
-  toQuery() {
-    return this[stack].reduce((query, partial) => partial(query), rethinkdb);
-  }
-
-  async run() {
-    let query = this;
-
-    if (this[model]) {
-      query = await (async function runBeforeRunHooks(classDef, query, hooks) {
-        if (classDef && classDef.beforeRun && !hooks.includes(classDef.beforeRun)) {
-          hooks.push(classDef.beforeRun);
-          query = classDef.beforeRun(query);
-        }
-
-        if (classDef && Object.getPrototypeOf(classDef) !== BASE_PROTO) {
-          query = await runBeforeRunHooks(Object.getPrototypeOf(classDef), query, hooks);
-        }
-        return query;
-      })(this[model], this, []);
-    }
-
-    const connection = await Database.connect();
-    const response = await query.toQuery().run(connection);
-
-    return this.processResponse(response);
-  }
-
-  async processResponse(response) {
-    if (response === null || this[model] === undefined) return response;
-    const isArrayResult = Array.isArray(response) && typeof response.toArray === 'function';
-    const methodList = this[methods];
-
-    // Single record returned - `get` call
-    if (hasOwnProperty.call(response, 'id')) {
-      return new this[model](response);
-      // Cursor check -- probably a better way to check for this
-    } else if (typeof response.next === 'function' && !isArrayResult) {
-      // Changefeed
-      if (methodList[methodList.length - 1] === 'changes') {
-        return new ModelCursor(this[model], response);
-      }
-      const records = await response.toArray();
-      return records.map(record => new this[model](record));
-    }
-    // insert, update, delete, replace
-    return response;
-  }
+export default function Query(
+  model: Model,
+  lastStack: Array<Function> = [],
+  lastMethods: Array<string> = [],
+  returnTypes: Array<string> = [],
+  notes: {} = {}
+) {
+  this.model = model;
+  this.stack = lastStack;
+  this.methods = lastMethods.length ? lastMethods : ['r'];
+  this.returns = returnTypes.length ? returnTypes : ['r'];
+  this.notes = notes;
 }
 
-module.exports.STACK_SYMBOL = stack;
-module.exports.METHODS_SYMBOL = methods;
+Query.prototype.toQuery = function toQuery() {
+  return this.stack.reduce((query, partial) => partial(query), rethinkdb);
+};
 
-RQL_METHODS.forEach(method => {
-  Query.prototype[method] = function reqlChain(...args) {
-    const previousReturnType = this[returns][this[returns].length - 1];
-    if (!transforms.get(previousReturnType)) {
-      console.log('missing return type from', previousReturnType, 'to', method);
-      console.log(this[methods]);
-      console.log(this[returns]);
+Query.prototype.run = async function run() {
+  const beforeRunHooks = getInheritedPropertyList(this.model, 'beforeRun');
+  const query = await beforeRunHooks.reduce(
+    async (partialQuery: Query, hook: Query => Query) => hook(partialQuery),
+    this
+  );
+  const connection = await this.model.db.getConnection();
+  const response = await query.toQuery().run(connection);
+
+  return this.processResponse(response);
+};
+
+Query.prototype.processResponse = async function processResponse(response: rethinkdb.Cursor) {
+  if (response === null || this.model === undefined) return response;
+  const isArrayResult = Array.isArray(response) && typeof response.toArray === 'function';
+  const methodList = this.methods;
+  const Constructor = this.model;
+
+  // Single record returned - `get` call
+  if (hasOwnProperty.call(response, 'id')) {
+    return new Constructor(response);
+    // Cursor check -- probably a better way to check for this
+  } else if (typeof response.next === 'function' && !isArrayResult) {
+    // Changefeed
+    if (methodList[methodList.length - 1] === 'changes') {
+      return new ModelCursor(Constructor, response);
     }
-    const nextReturnType = transforms.get(previousReturnType).get(method);
+    const records = await response.toArray();
+    return records.map((record: {}) => new Constructor(record));
+  }
+  // insert, update, delete, replace
+  return response;
+};
 
-    const newStack = this[stack].slice(0);
-    newStack.push(query => query[method](...args));
-    const newMethods = this[methods].slice(0);
-    newMethods.push(method);
-    const newReturns = this[returns].slice(0);
-    newReturns.push(nextReturnType);
-    return new this.constructor(this[model], newStack, newMethods, newReturns, this.notes);
-  };
-});
-
-Query.prototype.populate = function reqlPopulate() {
-  const { relations } = this[model];
+Query.prototype.populate = function populate(): rethinkdb.Operation {
+  const { relations } = this.model;
   let query = this;
 
   if (relations.hasOne) {
-    for (let [property, definition] of Object.entries(relations.hasOne)) {
+    for (const [property, definition] of Object.entries(relations.hasOne)) {
       query = query.map(function(result) {
         return result.merge({
           [property]: rethinkdb
@@ -147,6 +114,37 @@ Query.prototype.populate = function reqlPopulate() {
   return query;
 };
 
+Query.ensureTable = async function ensureTable(tableName: string): Promise<void> {
+  const tableList = await r.tableList().run();
+  if (!tableList.includes(tableName)) {
+    await r.tableCreate(tableName).run();
+    await r
+      .table(tableName)
+      .wait()
+      .run();
+  }
+};
+
+REQL_METHODS.forEach((method: string): void => {
+  Query.prototype[method] = function reqlChain(...args) {
+    const previousReturnType = this.returns[this.returns.length - 1];
+    if (!transforms.get(previousReturnType)) {
+      console.log('missing return type from', previousReturnType, 'to', method);
+      console.log(this.methods);
+      console.log(this.returns);
+    }
+    const nextReturnType = transforms.get(previousReturnType).get(method);
+
+    const newStack = this.stack.slice(0);
+    newStack.push(query => query[method](...args));
+    const newMethods = this.methods.slice(0);
+    newMethods.push(method);
+    const newReturns = this.returns.slice(0);
+    newReturns.push(nextReturnType);
+    return new this.constructor(this.model, newStack, newMethods, newReturns, this.notes);
+  };
+});
+
 const INVALID_FILTER_METHODS = [
   'indexCreate',
   'indexDrop',
@@ -165,36 +163,25 @@ const INVALID_FILTER_METHODS = [
 
 const FILTERABLE_TYPES = ['table', 'stream', 'array', 'selection'];
 
-Query.prototype.tapFilterRight = function(args) {
-  if (this[methods].find(method => INVALID_FILTER_METHODS.includes(method))) return this;
+Query.prototype.tapFilterRight = function tapFilterRight(args) {
+  if (this.methods.find(method => INVALID_FILTER_METHODS.includes(method))) return this;
 
   let methodIndex;
-  for (let i = this[returns].length; i >= 0; i--) {
-    if (FILTERABLE_TYPES.includes(this[returns][i])) {
+  for (let i = this.returns.length; i >= 0; i--) {
+    if (FILTERABLE_TYPES.includes(this.returns[i])) {
       methodIndex = i;
       break;
     }
   }
-  const newStack = this[stack].slice(0);
-  const newMethods = this[methods].slice(0);
-  const newReturns = this[returns].slice(0);
+  const newStack = this.stack.slice(0);
+  const newMethods = this.methods.slice(0);
+  const newReturns = this.returns.slice(0);
   newStack.splice(methodIndex, 0, function(query) {
     return query.filter(args);
   });
   newMethods.splice(methodIndex, 0, 'filter');
-  newReturns.splice(methodIndex + 1, 0, transforms.get(this[returns][methodIndex]).get('filter'));
-  return new this.constructor(this[model], newStack, newMethods, newReturns, this.notes);
-};
-
-Query.ensureTable = async tableName => {
-  const tableList = await r.tableList().run();
-  if (!tableList.includes(tableName)) {
-    await r.tableCreate(tableName).run();
-    await r
-      .table(tableName)
-      .wait()
-      .run();
-  }
+  newReturns.splice(methodIndex + 1, 0, transforms.get(this.returns[methodIndex]).get('filter'));
+  return new this.constructor(this.model, newStack, newMethods, newReturns, this.notes);
 };
 
 Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = false }) => {
@@ -247,5 +234,3 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
 
 const r = new Query();
 Query.r = r;
-
-module.exports = Query;
