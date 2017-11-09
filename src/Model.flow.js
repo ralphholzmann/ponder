@@ -15,12 +15,12 @@ export default class Model extends Query {
   }
 
   static applyMixins(namespace: Namespace): void {
-    const schemas = getInheritedPropertyList('schema', this);
+    const schemas = getInheritedPropertyList(this, 'schema');
     const finalSchema = Object.assign({}, ...schemas);
 
     Object.keys(finalSchema).forEach((key: string) => namespace.addSchemaProperty(finalSchema[key]));
 
-    const ReQLs = getInheritedPropertyList('ReQL', this);
+    const ReQLs = getInheritedPropertyList(this, 'ReQL');
     Object.assign(this.prototype, ReQLs);
   }
 

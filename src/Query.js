@@ -5,36 +5,42 @@ import ModelCursor from './ModelCursor';
 import { transforms, selectRow, assert } from './util';
 import { getInheritedPropertyList, REQL_METHODS } from './util.flow';
 import type Model from './Model.flow';
+import type Namespace from './Namespace.flow';
 
 const { hasOwnProperty } = Object.prototype;
 
-export default function Query(
-  model: Model,
-  lastStack: Array<Function> = [],
-  lastMethods: Array<string> = [],
-  returnTypes: Array<string> = [],
-  notes: {} = {}
-) {
+type QueryOptions = {
+  namespace: Namespace,
+  model?: Model,
+  stack?: Array<Function>,
+  methods?: Array<string>,
+  returnTypes?: Array<string>,
+  notes?: Object
+};
+
+export default function Query(options: QueryOptions) {
+  const { model, stack = [], methods = ['r'], returnTypes = ['r'], namespace, notes = {} } = options;
   this.model = model;
-  this.stack = lastStack;
-  this.methods = lastMethods.length ? lastMethods : ['r'];
-  this.returns = returnTypes.length ? returnTypes : ['r'];
+  this.stack = stack;
+  this.methods = methods;
+  this.returns = returnTypes;
   this.notes = notes;
+  this.namespace = namespace;
 }
 
-Query.prototype.toQuery = function toQuery() {
+Query.prototype.toQuery = function toQuery(connection) {
   return this.stack.reduce((query, partial) => partial(query), rethinkdb);
 };
 
 Query.prototype.run = async function run() {
-  const beforeRunHooks = getInheritedPropertyList(this.model, 'beforeRun');
-  const query = await beforeRunHooks.reduce(
-    async (partialQuery: Query, hook: Query => Query) => hook(partialQuery),
-    this
-  );
-  const connection = await this.model.db.getConnection();
-  const response = await query.toQuery().run(connection);
+  let query = this;
+  if (this.model) {
+    const beforeRunHooks = getInheritedPropertyList(this.model, 'beforeRun');
+    query = await beforeRunHooks.reduce(async (partialQuery: Query, hook: Query => Query) => hook(partialQuery), query);
+  }
 
+  const connection = await this.namespace.getDatabase().getConnection();
+  const response = await query.toQuery().run(connection);
   return this.processResponse(response);
 };
 

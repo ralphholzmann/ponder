@@ -1,5 +1,6 @@
 /* @flow */
 import type Model from './Model.flow';
+import type Database from './Database.flow';
 
 type Relation = {
   property: string,
@@ -15,6 +16,7 @@ type Relation = {
 
 export default class Namespace {
   model: Model;
+  database: Database;
   name: string;
   hasOne: Array<Relation>;
   hasMany: Array<Relation>;
@@ -22,8 +24,9 @@ export default class Namespace {
   schema: Map<string, Object>;
   indexes: Map<string, Object>;
 
-  constructor(model: Model) {
+  constructor(model: Model, database: Database) {
     this.model = model;
+    this.database = database;
     this.name = model.name;
     this.hasOne = [];
     this.hasMany = [];
@@ -37,7 +40,10 @@ export default class Namespace {
         }
       ])
     );
-    this.indexes = new Map(Object.keys(model.indexes).map((name: string) => [name, model.indexes[name]]));
+    this.indexes = new Map();
+    if (model.indexes) {
+      Object.keys(model.indexes).forEach((name: string) => this.indexes.set(name, model.indexes[name]));
+    }
   }
 
   addSchemaProperty(property: string, definition: Object) {
@@ -61,6 +67,10 @@ export default class Namespace {
   }
 
   filterSchema(option: string) {
-    Array.from(this.schema.values()).filter((property: Object) => Boolean(property[option]));
+    return Array.from(this.schema.values()).filter((property: Object) => Boolean(property[option]));
+  }
+
+  getDatabase() {
+    return this.database;
   }
 }

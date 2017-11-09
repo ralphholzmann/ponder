@@ -1,6 +1,7 @@
 /* @flow */
 import r from 'rethinkdb';
 import Namespace from './Namespace.flow';
+import Query from './Query';
 import type Model from './Model.flow';
 
 const DEFAULT_RETHINKDB_HOST = 'localhost';
@@ -38,6 +39,7 @@ export default class Database {
     this.password = password || DEFAULT_RETHINKDB_PASSWORD;
     this.getUserDefinedConnection = getConnection;
     this.models = new Map();
+    this.namespaces = new Map();
     this.queryNumber = 0;
   }
 
@@ -55,7 +57,7 @@ export default class Database {
   async connect(): Promise<void> {
     await this.ensureDatabase();
     await Array.from(this.models.values()).reduce(async (nil, model) => {
-      await model.setup(this.namespaces.get(model.name), this.models);
+      await model.setup(this.namespaces.get(model.table), this.models);
     }, null);
   }
 
@@ -70,14 +72,18 @@ export default class Database {
   }
 
   register(model: Model): void {
-    const namespace = new Namespace(model);
-    this.namespaces.set(model.name, namespace);
+    const namespace = new Namespace(model, this);
+    const table = model.name;
+    this.namespaces.set(table, namespace);
 
     this.models.set(
-      model.name,
+      table,
       class extends model {
-        static db = this;
         static namespace = namespace;
+        static table = table;
+        static r = new Query({
+          namespace
+        });
       }
     );
   }
