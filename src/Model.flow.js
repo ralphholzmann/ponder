@@ -1,5 +1,5 @@
 import Query, { r } from './Query';
-import { has, get, forEachAsync, getInheritedPropertyList, capitalize, lcfirst } from './util.flow';
+import { get, forEachAsync, getInheritedPropertyList, capitalize, lcfirst } from './util.flow';
 import type Namespace from './Namespace.flow';
 
 export default class Model extends Query {
@@ -10,7 +10,7 @@ export default class Model extends Query {
   static async setup(namespace: Namespace, models: Map): Promise<void> {
     this.applyMixins(namespace);
     await this.ensureUniqueLookupTables();
-    await Query.ensureTable(this.name);
+    await this.ensureTable(this.table);
     await this.setupRelations(models);
   }
 
@@ -31,7 +31,7 @@ export default class Model extends Query {
 
     uniqueProperties.forEach(async ({ property }) => {
       const tableName = `${this.name}_${property}_unique`;
-      await Query.ensureTable(tableName);
+      await this.ensureTable(tableName);
       this[`is${capitalize(property)}Unique`] = async value =>
         !await r
           .table(tableName)
@@ -92,11 +92,11 @@ export default class Model extends Query {
           modelNames
         });
 
-        await Query.ensureTable(table);
-        await Query.ensureIndex(definition.tableName, {
+        await this.ensureTable(table);
+        await this.ensureIndex(definition.tableName, {
           properties: [keys[0]]
         });
-        await Query.ensureIndex(definition.tableName, {
+        await this.ensureIndex(definition.tableName, {
           properties: [keys[1]]
         });
       } else {

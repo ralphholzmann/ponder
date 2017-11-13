@@ -18,7 +18,7 @@ type QueryOptions = {
   notes?: Object
 };
 
-export default function Query(options: QueryOptions) {
+export default function Query(options: QueryOptions = {}) {
   const { model, stack = [], methods = ['r'], returnTypes = ['r'], namespace, notes = {} } = options;
   this.model = model;
   this.stack = stack;
@@ -121,10 +121,10 @@ Query.prototype.populate = function populate(): rethinkdb.Operation {
 };
 
 Query.ensureTable = async function ensureTable(tableName: string): Promise<void> {
-  const tableList = await r.tableList().run();
+  const tableList = await this.r.tableList().run();
   if (!tableList.includes(tableName)) {
-    await r.tableCreate(tableName).run();
-    await r
+    await this.r.tableCreate(tableName).run();
+    await this.r
       .table(tableName)
       .wait()
       .run();
@@ -147,7 +147,15 @@ REQL_METHODS.forEach((method: string): void => {
     newMethods.push(method);
     const newReturns = this.returns.slice(0);
     newReturns.push(nextReturnType);
-    return new this.constructor(this.model, newStack, newMethods, newReturns, this.notes);
+
+    return new this.constructor({
+      model: this.model,
+      stack: newStack,
+      methods: newMethods,
+      returns: newReturns,
+      namespace: this.namespace,
+      notes: this.notes
+    });
   };
 });
 
@@ -227,16 +235,13 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
       args.push(name, properties.map(selectRow), options);
     }
 
-    await r
+    await this.r
       .table(tableName)
       .indexCreate(...args)
       .run();
-    await r
+    await this.r
       .table(tableName)
       .indexWait()
       .run();
   }
 };
-
-const r = new Query();
-Query.r = r;
