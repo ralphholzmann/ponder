@@ -75,20 +75,19 @@ module.exports.METHODS_SYMBOL = methods;
 
 RQL_METHODS.forEach(method => {
   Query.prototype[method] = function reqlChain(...args) {
-    const previousReturnType = this[returns][this[returns].length - 1];
-    if (!transforms.get(previousReturnType)) {
-      console.log('missing return type from', previousReturnType, 'to', method);
-      console.log(this[methods]);
-      console.log(this[returns]);
-    }
-    const nextReturnType = transforms.get(previousReturnType).get(method);
-
     const newStack = this[stack].slice(0);
-    newStack.push(query => query[method](...args));
     const newMethods = this[methods].slice(0);
-    newMethods.push(method);
     const newReturns = this[returns].slice(0);
-    newReturns.push(nextReturnType);
+    const previousReturnType = this[returns][this[returns].length - 1];
+
+    try {
+      const nextReturnType = transforms.get(previousReturnType).get(method);
+      newReturns.push(nextReturnType);
+    } catch (error) { console.log(error); }
+
+    newMethods.push(method);
+    newStack.push(query => query[method](...args));
+
     return new this.constructor(this[model], newStack, newMethods, newReturns, this.notes);
   };
 });
