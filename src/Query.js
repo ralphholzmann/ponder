@@ -4,13 +4,14 @@ import rethinkdb from 'rethinkdb';
 import ModelCursor from './ModelCursor';
 import { transforms, selectRow, assert } from './util';
 import { getInheritedPropertyList, REQL_METHODS } from './util.flow';
+import Database from './Database.flow';
 import type Model from './Model.flow';
 import type Namespace from './Namespace.flow';
 
 const { hasOwnProperty } = Object.prototype;
 
 type QueryOptions = {
-  namespace: Namespace,
+  namespace?: Namespace,
   model?: Model,
   stack?: Array<Function>,
   methods?: Array<string>,
@@ -19,16 +20,15 @@ type QueryOptions = {
 };
 
 export default function Query(options: QueryOptions = {}) {
-  const { model, stack = [], methods = ['r'], returnTypes = ['r'], namespace, notes = {} } = options;
+  const { model, stack = [], methods = ['r'], returnTypes = ['r'], notes = {} } = options;
   this.model = model;
   this.stack = stack;
   this.methods = methods;
   this.returns = returnTypes;
   this.notes = notes;
-  this.namespace = namespace;
 }
 
-Query.prototype.toQuery = function toQuery(connection) {
+Query.prototype.toQuery = function toQuery() {
   return this.stack.reduce((query, partial) => partial(query), rethinkdb);
 };
 
@@ -39,7 +39,7 @@ Query.prototype.run = async function run() {
     query = await beforeRunHooks.reduce(async (partialQuery: Query, hook: Query => Query) => hook(partialQuery), query);
   }
 
-  const connection = await this.namespace.getDatabase().getConnection();
+  const connection = await Database.getConnection();
   const response = await query.toQuery().run(connection);
   return this.processResponse(response);
 };
@@ -121,10 +121,10 @@ Query.prototype.populate = function populate(): rethinkdb.Operation {
 };
 
 Query.ensureTable = async function ensureTable(tableName: string): Promise<void> {
-  const tableList = await this.r.tableList().run();
+  const tableList = await r.tableList().run();
   if (!tableList.includes(tableName)) {
-    await this.r.tableCreate(tableName).run();
-    await this.r
+    await r.tableCreate(tableName).run();
+    await r
       .table(tableName)
       .wait()
       .run();
@@ -245,3 +245,5 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
       .run();
   }
 };
+
+const r = new Query();

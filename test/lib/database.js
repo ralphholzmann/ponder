@@ -1,7 +1,7 @@
 import Database from '../../lib/Database.flow';
 
-const db = new Database({
+Database.config({
   db: '__ponder_tests__'
 });
 
-export default db;
+export default Database;

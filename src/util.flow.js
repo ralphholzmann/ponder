@@ -1,6 +1,7 @@
 /* @flow */
 /* eslint no-use-before-define: 0 */
 import rethinkdb from 'rethinkdb';
+import type Model from './Model.flow';
 
 const BASE_PROTO = Object.getPrototypeOf(class {});
 
@@ -21,7 +22,7 @@ export const has = (object: {}, path: string): boolean => {
   return hasProperty;
 };
 
-export const getInheritedPropertyList = (prototype: {}, property: string): Array<mixed> => {
+export const getInheritedPropertyList = (prototype: {} | Model, property: string): Array<any> => {
   const result = [];
   const nextPrototype = Object.getPrototypeOf(prototype);
 

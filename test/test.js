@@ -1,7 +1,7 @@
 import test from 'ava';
 import r from 'rethinkdb';
 import { Model, Point } from '../lib';
-import db from './lib/database';
+import Database from './lib/database';
 
 class Era extends Model {
   static schema = {
@@ -87,21 +87,21 @@ class Armor extends Model {
   };
 }
 
-db.register(Character);
-db.register(Weapon);
-db.register(Armor);
-db.register(Era);
-db.register(Place);
+Database.register(Character);
+Database.register(Weapon);
+Database.register(Armor);
+Database.register(Era);
+Database.register(Place);
 
 test.before(async () => {
-  await db.connect();
+  await Database.connect();
 });
 
 test.after.always(async () => {
-  await db.teardown();
+  await Database.teardown();
 });
 
-test('Saving a new model instance adds an id to the instance', async t => {
+test.only('Saving a new model instance adds an id to the instance', async t => {
   const user = new Character({
     name: 'Crono',
     age: 17,
@@ -343,7 +343,7 @@ test('sets array proprety to empty array if array is empty', async t => {
 });
 
 test('unique property creates index table to enforce uniqueness', async t => {
-  const tableList = await db.execute(r.db('test_db').tableList());
+  const tableList = await Database.execute(r.db('test_db').tableList());
   t.not(tableList.indexOf('Character_name_unique'), -1);
 });
 

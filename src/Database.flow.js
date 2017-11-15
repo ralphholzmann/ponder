@@ -20,30 +20,32 @@ type config = {
 };
 
 export default class Database {
-  host: string;
-  port: number;
-  db: string;
-  user: string;
-  password: string;
-  connection: r.Connection;
+  static host: string;
+  static port: number;
+  static db: string;
+  static user: string;
+  static password: string;
+  static connection: r.Connection;
   models: Map<string, Model>;
-  namespaces: Map<string, Namespace>;
-  getUserDefinedConnection: (queryNumber: number) => Promise<r.Connection>;
+  namespaces: Map<Model, Namespace>;
+  static getUserDefinedConnection: (queryNumber: number) => Promise<r.Connection>;
   queryNumber: number;
+  r: Query;
 
-  constructor({ host, port, db, user, password, getConnection }: config) {
+  static models = new Map();
+  static namespaces = new Map();
+  static queryNumber = 0;
+
+  static config({ host, port, db, user, password, getConnection }: config) {
     this.host = host || DEFAULT_RETHINKDB_HOST;
     this.port = port || DEFAULT_RETHINKDB_PORT;
     this.db = db || DEFAULT_RETHINKDB_DB;
     this.user = user || DEFAULT_RETHINKDB_USER;
     this.password = password || DEFAULT_RETHINKDB_PASSWORD;
     this.getUserDefinedConnection = getConnection;
-    this.models = new Map();
-    this.namespaces = new Map();
-    this.queryNumber = 0;
   }
 
-  async getConnection(): Promise<r.Connection> {
+  static async getConnection(): Promise<r.Connection> {
     this.queryNumber += 1;
     if (typeof this.getUserDefinedConnection === 'function') {
       return this.getUserDefinedConnection(this.queryNumber);
@@ -54,41 +56,34 @@ export default class Database {
     return this.connection;
   }
 
-  async connect(): Promise<void> {
+  static async connect(): Promise<void> {
     await this.ensureDatabase();
     await Array.from(this.models.values()).reduce(async (nil, model) => {
-      await model.setup(this.namespaces.get(model.table), this.models);
+      await model.setup(this.namespaces.get(model), this.models);
     }, null);
   }
 
-  async execute(query: r.Operation<any>): Promise<string[]> {
+  static async execute(query: r.Operation<any>): Promise<string[]> {
     const connection = await this.getConnection();
     return query.run(connection);
   }
 
-  async disconnect(): Promise<void> {
+  static async disconnect(): Promise<void> {
     const connection = await this.getConnection();
     await connection.close();
   }
 
-  register(model: Model): void {
-    const namespace = new Namespace(model, this);
-    const table = model.name;
-    this.namespaces.set(table, namespace);
-
-    this.models.set(
-      table,
-      class extends model {
-        static namespace = namespace;
-        static table = table;
-        static r = new Query({
-          namespace
-        });
-      }
-    );
+  static register(model: Model): void {
+    const namespace = new Namespace(model);
+    this.namespaces.set(model, namespace);
+    this.models.set(model.name, model);
   }
 
-  async ensureDatabase(): Promise<void> {
+  static getNamespace(model: Model) {
+    return this.namespaces.get(model);
+  }
+
+  static async ensureDatabase(): Promise<void> {
     const list = await this.execute(r.dbList());
     if (!list.includes(this.db)) {
       await this.execute(r.dbCreate(this.db));

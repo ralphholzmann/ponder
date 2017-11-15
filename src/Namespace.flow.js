@@ -1,6 +1,6 @@
 /* @flow */
+import { getInheritedPropertyList } from './util.flow';
 import type Model from './Model.flow';
-import type Database from './Database.flow';
 
 type Relation = {
   property: string,
@@ -16,17 +16,17 @@ type Relation = {
 
 export default class Namespace {
   model: Model;
-  database: Database;
   name: string;
   hasOne: Array<Relation>;
   hasMany: Array<Relation>;
   manyToMany: Array<Relation>;
   schema: Map<string, Object>;
   indexes: Map<string, Object>;
+  beforeSaveHooks: Array<Function>;
+  afterSaveHooks: Array<Function>;
 
-  constructor(model: Model, database: Database) {
+  constructor(model: Model) {
     this.model = model;
-    this.database = database;
     this.name = model.name;
     this.hasOne = [];
     this.hasMany = [];
@@ -44,6 +44,9 @@ export default class Namespace {
     if (model.indexes) {
       Object.keys(model.indexes).forEach((name: string) => this.indexes.set(name, model.indexes[name]));
     }
+
+    this.beforeSaveHooks = getInheritedPropertyList(model, 'beforeSave');
+    this.afterSaveHooks = getInheritedPropertyList(model, 'afterSave');
   }
 
   addSchemaProperty(property: string, definition: Object) {
@@ -68,9 +71,5 @@ export default class Namespace {
 
   filterSchema(option: string) {
     return Array.from(this.schema.values()).filter((property: Object) => Boolean(property[option]));
-  }
-
-  getDatabase() {
-    return this.database;
   }
 }
