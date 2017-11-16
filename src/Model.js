@@ -237,6 +237,7 @@ class Model {
       async ({ key, primaryKey, manyToMany, tableName, keys, myKey, relationKey, modelNames }, property) => {
         if (manyToMany) {
           // TODO(ralph): Make this smarter, only remove the relations that are actually removed instead of nuking and rewriting
+          /** /
           await r
             .table(tableName)
             .getAll(this.id, {
@@ -244,6 +245,7 @@ class Model {
             })
             .delete()
             .run();
+          /**/
           const relationIds = this[property].map(instance => instance.id);
           await Promise.all(
             relationIds.map(async relationId => {
