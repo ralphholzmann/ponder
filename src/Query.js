@@ -40,7 +40,6 @@ Query.prototype.run = async function run() {
   }
 
   const connection = await Database.getConnection();
-  console.log(query.toQuery().toString());
   const response = await query.toQuery().run(connection);
   return this.processResponse(response);
 };
@@ -72,23 +71,18 @@ Query.prototype.populate = function populate(): rethinkdb.Operation {
   let query = this;
 
   query = this.populateHasOne(query, namespace);
-  console.log('hasOne done');
   query = this.populateHasMany(query, namespace);
-  console.log('hasMany done');
   query = this.populateManyToMany(query, namespace);
-  console.log('many to Many done');
 
   return query;
 };
 
 Query.prototype.populateHasOne = function populateHasOne(query: Query, namespace: Namespace): Query {
-  console.log('populating has one');
   namespace.forEach('hasOne', ({ property, key, foreignKey, model }) => {
-    console.log('adding map join');
     query = query.map(result =>
       result.merge({
         [property]: rethinkdb
-          .table(model)
+          .table(model.name)
           .getAll(result.getField(key), {
             index: foreignKey
           })
@@ -97,33 +91,29 @@ Query.prototype.populateHasOne = function populateHasOne(query: Query, namespace
       })
     );
   });
-  console.log('done populating has one');
 
   return query;
 };
 
 Query.prototype.populateHasMany = function populateHasMany(query: Query, namespace: Namespace): Query {
-  namespace.forEachHasMany(({ property, key, tableName, foreignKey, model }) => {
-    query = query.map(function(result) {
-      return result.merge({
+  namespace.forEach('hasMany', ({ property, key, model }) => {
+    query = query.map(result =>
+      result.merge({
         [property]: rethinkdb
-          .table(tableName)
+          .table(model.name)
           .getAll(result.getField('id'), {
             index: key
           })
           .coerceTo('array')
-          .map(function(result) {
-            return rethinkdb.table(model).get(result.getField(foreignKey));
-          })
-      });
-    });
+      })
+    );
   });
 
   return query;
 };
 
 Query.prototype.populateManyToMany = function populateManyToMany(query: Query, namespace: Namespace): Query {
-  namespace.forEachManyToMany(({ property, key, primaryKey, model }) => {
+  namespace.forEach('manyToMany', ({ property, key, primaryKey, model }) => {
     query = query.map(function(result) {
       return result.merge({
         [property]: rethinkdb

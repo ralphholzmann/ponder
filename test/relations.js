@@ -1,5 +1,6 @@
 import test from 'ava';
-import { Database, Model } from '../src';
+import { Model } from '../src';
+import Database from './lib/database';
 
 class Asset extends Model {
   static schema = {
@@ -69,9 +70,6 @@ Database.register(Exchange);
 Database.register(Country);
 
 test.before(async () => {
-  Database.config({
-    db: 'test_db'
-  });
   await Database.connect();
 });
 

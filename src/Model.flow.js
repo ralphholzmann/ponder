@@ -40,6 +40,7 @@ export default class Model {
     if (uniqueProperties.length === 0) return;
 
     uniqueProperties.forEach(async ({ property }) => {
+      console.log('setting up unique property table!', property, `${this.name}_${property}_unique`);
       const tableName = `${this.name}_${property}_unique`;
       await Query.ensureTable(tableName);
       this[`is${capitalize(property)}Unique`] = async value =>
@@ -140,6 +141,39 @@ export default class Model {
 
   static async createIndexes(namespace: Namespace) {
     await namespace.forEachIndex(([name, definition]) => Query.ensureIndex(this.name, { name, ...definition }));
+  }
+
+  static async createUniqueLookups(keys, model) {
+    const result = await Promise.all(
+      keys.map(({ key, value: id }) =>
+        r
+          .table(`${model}_${key}_unique`)
+          .insert({ id })
+          .run()
+      )
+    );
+    const errorIndex = result.findIndex(({ errors }) => errors > 0);
+    if (errorIndex > -1) {
+      await Promise.all(
+        result.filter(({ errors }) => errors === 0).map((item, index) =>
+          r
+            .table(`${model}_${result[index].key}_unique`)
+            .get(result[index].value)
+            .delete()
+            .run()
+        )
+      );
+      throw new Error(`'${model}.${keys[errorIndex].key}' must be unique`);
+    }
+    await Promise.all(
+      keys.filter(key => key.oldValue).map(({ key, oldValue: id }) =>
+        r
+          .table(`${model}_${key}_unique`)
+          .get(id)
+          .delete()
+          .run()
+      )
+    );
   }
 
   constructor(properties) {

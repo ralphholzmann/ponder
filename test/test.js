@@ -1,7 +1,7 @@
 import test from 'ava';
 import r from 'rethinkdb';
 import { Model, Point } from '../lib';
-import Database from './lib/database';
+import Database, { TEST_DATABASE_NAME } from './lib/database';
 
 class Era extends Model {
   static schema = {
@@ -36,7 +36,7 @@ class Place extends Model {
 
 class Character extends Model {
   static schema = {
-    name: String,
+    name: { type: String, allowNull: true, unique: true },
     nickname: { type: String, allowNull: true, unique: true },
     age: { type: Number, allowNull: true },
     magicType: { type: String, allowNull: true },
@@ -252,15 +252,11 @@ test('hasOne relations save correctly', async t => {
 });
 
 test('hasOne relations load correctly', async t => {
-  console.log('filtering character');
   const [character] = await Character.filter({
     name: 'Crono'
   })
     .populate()
     .run();
-  console.log('filtering character done');
-
-  console.log('hi', character.equippedWeapon);
 
   t.true(character.equippedWeapon instanceof Weapon);
   t.is(character.equippedWeaponId, character.equippedWeapon.id);
@@ -347,7 +343,7 @@ test('sets array proprety to empty array if array is empty', async t => {
 });
 
 test('unique property creates index table to enforce uniqueness', async t => {
-  const tableList = await Database.execute(r.db('test_db').tableList());
+  const tableList = await Database.execute(r.db(TEST_DATABASE_NAME).tableList());
   t.not(tableList.indexOf('Character_name_unique'), -1);
 });
 

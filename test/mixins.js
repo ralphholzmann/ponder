@@ -1,7 +1,8 @@
 import test from 'ava';
-import { Database, Model } from '../src';
-import TimeStampMixin from '../src/mixins/Timestamp';
-import SoftDeleteMixin from '../src/mixins/Deleted';
+import { Model } from '../src';
+import Database from './lib/database';
+import TimeStampMixin from '../lib/mixins/Timestamp';
+import SoftDeleteMixin from '../lib/mixins/Deleted';
 
 class Message extends Model.with(TimeStampMixin, SoftDeleteMixin) {
   static schema = {
@@ -11,16 +12,7 @@ class Message extends Model.with(TimeStampMixin, SoftDeleteMixin) {
 
 Database.register(Message);
 
-test.before(async () => {
-  Database.config({
-    db: 'test_db'
-  });
-  await Database.connect();
-});
-
 test('Mixin augments schema correctly', async t => {
-  t.true(Object.prototype.hasOwnProperty.call(Message.schema, 'text'));
-  t.true(Object.prototype.hasOwnProperty.call(Message.schema, 'created'));
-  t.true(Object.prototype.hasOwnProperty.call(Message.schema, 'updated'));
-  t.true(Object.prototype.hasOwnProperty.call(Message.schema, 'deleted'));
+  const namespace = Database.getNamespace();
+  [('text', 'created', 'updated', 'deleted')].forEach(prop => t.truthy(namespace.schema.get(prop)));
 });

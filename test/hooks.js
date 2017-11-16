@@ -1,6 +1,7 @@
 import test from 'ava';
-import { Database, Model } from '../src';
-import TimeStampMixin from '../src/mixins/Timestamp.js';
+import { Model } from '../lib';
+import Database from './lib/database';
+import TimeStampMixin from '../lib/mixins/Timestamp.js';
 
 const TWEET_LENGTH = 140;
 
@@ -18,13 +19,6 @@ class Tweet extends Model.with(TimeStampMixin) {
 
   static async afterSave() {}
 }
-
-test.before(async () => {
-  Database.config({
-    db: 'test_db'
-  });
-  await Database.connect();
-});
 
 Database.register(Tweet);
 
