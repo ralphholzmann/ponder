@@ -1,5 +1,5 @@
 /* @flow */
-import { getInheritedPropertyList } from './util.flow';
+import { get, getInheritedPropertyList } from './util.flow';
 import type Model from './Model.flow';
 
 type Relation = {
@@ -46,8 +46,17 @@ export default class Namespace {
     this.afterSaveHooks = getInheritedPropertyList(model, 'afterSave');
   }
 
-  addSchemaProperty(property: string, definition: Object) {
-    this.schema.set(property, { property, ...definition });
+  addSchemaProperty(property: string, definition: any) {
+    let config;
+    if (definition.type) {
+      config = definition;
+    } else {
+      config = {
+        type: definition
+      };
+    }
+
+    this.schema.set(property, { property, ...config });
   }
 
   addIndex(name: string, definition: Object) {
@@ -59,7 +68,14 @@ export default class Namespace {
   }
 
   forEachSchemaProperty(iterator: Function) {
-    return Namespace.forEach(Array.from(this.schema.entries()), iterator);
+    Array.from(this.schema.entries()).forEach(iterator);
+  }
+
+  forEach(property: string, iterator: Function) {
+    const list = get(this, property);
+    if (Array.isArray(list)) {
+      list.forEach(iterator);
+    }
   }
 
   forEachHasOne(iterator: Function) {
@@ -72,6 +88,10 @@ export default class Namespace {
 
   forEachManyToMany(iterator: Function) {
     return Namespace.forEach(this.manyToMany, iterator);
+  }
+
+  forEachIndex(iterator: Function) {
+    return Namespace.forEach(Array.from(this.indexes.entries()), iterator);
   }
 
   addHasMany(relation: Relation) {

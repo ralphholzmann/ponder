@@ -1,12 +1,13 @@
 import Database from './Database.flow';
 import Query from './Query';
+import Point from './Point';
 
-import { get, has, forEachAsync, getInheritedPropertyList, capitalize, lcfirst } from './util.flow';
+import { get, has, forEachAsync, getInheritedPropertyList, capitalize, lcfirst, REQL_METHODS } from './util.flow';
 import type Namespace from './Namespace.flow';
 
 const { r } = Database;
 
-export default class Model extends Query {
+export default class Model {
   static namespace: Namespace;
   static databases: Array<Database>;
   static databases = [];
@@ -18,8 +19,9 @@ export default class Model extends Query {
   static async setup(namespace: Namespace, models: Map): Promise<void> {
     this.applyMixins(namespace);
     await this.ensureUniqueLookupTables(namespace);
-    await this.ensureTable(this.name);
+    await Query.ensureTable(this.name);
     await this.setupRelations(namespace, models);
+    await this.createIndexes(namespace);
   }
 
   static applyMixins(namespace: Namespace): void {
@@ -39,7 +41,7 @@ export default class Model extends Query {
 
     uniqueProperties.forEach(async ({ property }) => {
       const tableName = `${this.name}_${property}_unique`;
-      await this.ensureTable(tableName);
+      await Query.ensureTable(tableName);
       this[`is${capitalize(property)}Unique`] = async value =>
         !await r
           .table(tableName)
@@ -100,11 +102,11 @@ export default class Model extends Query {
           modelNames
         });
 
-        await this.ensureTable(table);
-        await this.ensureIndex(definition.tableName, {
+        await Query.ensureTable(table);
+        await Query.ensureIndex(definition.tableName, {
           properties: [keys[0]]
         });
-        await this.ensureIndex(definition.tableName, {
+        await Query.ensureIndex(definition.tableName, {
           properties: [keys[1]]
         });
       } else {
@@ -136,8 +138,11 @@ export default class Model extends Query {
     });
   }
 
+  static async createIndexes(namespace: Namespace) {
+    await namespace.forEachIndex(([name, definition]) => Query.ensureIndex(this.name, { name, ...definition }));
+  }
+
   constructor(properties) {
-    super();
     this.pendingUpdate = {};
     this.oldValues = {};
     this.defineProperties();
@@ -166,6 +171,11 @@ export default class Model extends Query {
   }
 
   defineRelations() {
+    this.defineHasOneRelations();
+    this.defineHasManyRelations();
+  }
+
+  defineHasOneRelations() {
     Database.getNamespace(this.constructor).forEachHasOne(({ property, key, foreignKey }) => {
       let currentValue;
 
@@ -185,10 +195,12 @@ export default class Model extends Query {
         }
       });
     });
+  }
 
-    Database.getNamespace(this.constructor).forEachHasOne(
-
-    this.constructor.forEachHasMany(({ key, primaryKey, constructor, manyToMany, manyProperty }, property) => {
+  defineHasManyRelations() {
+    Database.getNamespace(
+      this.constructor
+    ).forEachHasMany(({ key, property, primaryKey, constructor, manyToMany, manyProperty }) => {
       let setHandler;
       if (manyToMany) {
         setHandler = {
@@ -234,29 +246,28 @@ export default class Model extends Query {
   }
 
   assign(properties) {
-    const { schema } = this.constructor;
+    const namespace = Database.getNamespace(this.constructor);
 
     if (has(properties, 'id')) {
       this.id = properties.id;
     }
 
-    Object.keys(schema).forEach(key => {
-      const config = schema[key];
+    namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
       let allowNull = false;
       let type;
       let value = properties[key];
 
-      if (config.type) {
-        type = config.type;
+      if (definition.type) {
+        type = definition.type;
 
-        if ('allowNull' in config) {
-          allowNull = config.allowNull;
+        if ('allowNull' in definition) {
+          allowNull = definition.allowNull;
         }
-        if ('default' in config && typeof value === 'undefined') {
-          value = config.default;
+        if ('default' in definition && typeof value === 'undefined') {
+          value = definition.default;
         }
       } else {
-        type = config;
+        type = definition;
       }
 
       if ((type === Date && typeof value === 'undefined') || (allowNull && (value === null || value === undefined))) {
@@ -279,15 +290,15 @@ export default class Model extends Query {
       }
     });
 
-    this.constructor.forEachHasOne(({ constructor }, property) => {
+    Database.getNamespace(this.constructor).forEachHasOne(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
-        this[property] = new constructor(properties[property]);
+        this[property] = new model(properties[property]);
       }
     });
 
-    this.constructor.forEachHasMany(({ constructor }, property) => {
+    Database.getNamespace(this.constructor).forEachHasMany(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
-        this[property] = properties[property].map(record => new constructor(record));
+        this[property] = properties[property].map(record => new model(record));
       }
     });
   }
@@ -320,7 +331,6 @@ export default class Model extends Query {
 
   async insert(options) {
     const namespace = Database.getNamespace(this.constructor);
-    const { schema } = this.constructor;
     const payload = {};
     const unique = [];
 
@@ -347,7 +357,7 @@ export default class Model extends Query {
       }
     });
 
-    namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
+    await namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
       payload[key] = this[key];
       if (definition.unique && this[key]) {
         unique.push({ key, value: definition.type === String ? this[key].toLowerCase() : this[key] });
@@ -376,7 +386,18 @@ export default class Model extends Query {
   foreignProperty: string
     /**/
 
-    await namespace.forEachHasMany(async ({ property, key, foreignKey, model }) => {
+    await namespace.forEachHasMany(async ({ property, key, primaryKey, model }) => {
+      await Promise.all(
+        this[property].map(instance => {
+          instance[key] = this[primaryKey];
+          return instance.save(options);
+        })
+      );
+    });
+
+    await namespace.forEachManyToMany(async ({ property, key, table, foreignProperty, modelNames }) => {
+      const relationIds = this[property].map(instance => instance.id);
+
       await Promise.all(
         this[property].map(instance => {
           instance[key] = this[primaryKey];
@@ -384,24 +405,21 @@ export default class Model extends Query {
         })
       );
 
-      if (manyToMany) {
-        const relationIds = this[property].map(instance => instance.id);
-        await Promise.all(
-          relationIds.map(async relationId => {
-            const id = (this.constructor.name === modelNames[0] ? [this.id, relationId] : [relationId, this.id]).join(
-              '_'
-            );
-            await r
-              .table(tableName)
-              .insert({
-                id,
-                [myKey]: this.id,
-                [relationKey]: relationId
-              })
-              .run();
-          })
-        );
-      }
+      await Promise.all(
+        relationIds.map(async relationId => {
+          const id = (this.constructor.name === modelNames[0] ? [this.id, relationId] : [relationId, this.id]).join(
+            '_'
+          );
+          await r
+            .table(table)
+            .insert({
+              id,
+              [key]: this.id,
+              [foreignProperty]: relationId
+            })
+            .run();
+        })
+      );
     });
 
     options.STACK.delete(this);
@@ -411,4 +429,71 @@ export default class Model extends Query {
       options.PENDING.forEach(update => update());
     }
   }
+
+  async update(options) {
+    const namespace = Database.getNamespace(this.constructor);
+    const { schema, name } = this.constructor;
+    const unique = Object.keys(schema).reduce((reduction, key) => {
+      if (schema[key].unique && this.pendingUpdate[key]) {
+        reduction.push({
+          key,
+          value: schema[key].type === String ? this.pendingUpdate[key].toLowerCase() : this.pendingUpdate[key],
+          oldValue: schema[key].type === String ? this.oldValues[key].toLowerCase() : this.oldValues[key]
+        });
+      }
+      return reduction;
+    }, []);
+
+    if (unique.length > 0) {
+      await this.constructor.createUniqueLookups(unique, name);
+    }
+
+    await r
+      .table(name)
+      .get(this.id)
+      .update(this.pendingUpdate)
+      .run();
+
+    await namespace.forEachHasMany(
+      async ({ key, primaryKey, manyToMany, tableName, keys, myKey, relationKey, modelNames }, property) => {
+        if (manyToMany) {
+          // TODO(ralph): Make this smarter, only remove the relations that are actually removed instead of nuking and rewriting
+          await r
+            .table(tableName)
+            .getAll(this.id, {
+              index: myKey
+            })
+            .delete()
+            .run();
+          const relationIds = this[property].map(instance => instance.id);
+          await Promise.all(
+            relationIds.map(async relationId => {
+              const id = (this.constructor.name === modelNames[0] ? [this.id, relationId] : [relationId, this.id]).join(
+                '_'
+              );
+              await r
+                .table(tableName)
+                .insert({
+                  id,
+                  [myKey]: this.id,
+                  [relationKey]: relationId
+                })
+                .run();
+            })
+          );
+        }
+      }
+    );
+
+    this.pendingUpdate = {};
+    this.oldValues = {};
+    return this;
+  }
 }
+
+REQL_METHODS.forEach(method => {
+  Model[method] = function rqlProxy(...args) {
+    const query = new Query({ model: this }).table(this.name);
+    return query[method](...args);
+  };
+});

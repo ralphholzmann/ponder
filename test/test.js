@@ -36,7 +36,7 @@ class Place extends Model {
 
 class Character extends Model {
   static schema = {
-    name: { type: String, unique: true },
+    name: String,
     nickname: { type: String, allowNull: true, unique: true },
     age: { type: Number, allowNull: true },
     magicType: { type: String, allowNull: true },
@@ -98,10 +98,10 @@ test.before(async () => {
 });
 
 test.after.always(async () => {
-  await Database.disconnect();
+  await Database.teardown();
 });
 
-test.only('Saving a new model instance adds an id to the instance', async t => {
+test('Saving a new model instance adds an id to the instance', async t => {
   const user = new Character({
     name: 'Crono',
     age: 17,
@@ -252,11 +252,15 @@ test('hasOne relations save correctly', async t => {
 });
 
 test('hasOne relations load correctly', async t => {
+  console.log('filtering character');
   const [character] = await Character.filter({
     name: 'Crono'
   })
     .populate()
     .run();
+  console.log('filtering character done');
+
+  console.log('hi', character.equippedWeapon);
 
   t.true(character.equippedWeapon instanceof Weapon);
   t.is(character.equippedWeaponId, character.equippedWeapon.id);

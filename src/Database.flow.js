@@ -59,9 +59,9 @@ export default class Database {
 
   static async connect(): Promise<void> {
     await this.ensureDatabase();
-    await Array.from(this.models.values()).reduce(async (nil, model) => {
-      await model.setup(this.namespaces.get(model), this.models);
-    }, null);
+    await Array.from(this.models.values()).reduce(async (chain, model) => {
+      return chain.then(() => model.setup(this.namespaces.get(model), this.models));
+    }, Promise.resolve());
   }
 
   static async execute(query: r.Operation<any>): Promise<string[]> {
@@ -72,6 +72,13 @@ export default class Database {
   static async disconnect(): Promise<void> {
     const connection = await this.getConnection();
     await connection.close();
+  }
+
+  static async teardown() {
+    if (process.env.NODE_ENV === 'test') {
+      await this.execute(r.dbDrop(this.db));
+    }
+    await this.disconnect();
   }
 
   static register(model: Model): void {

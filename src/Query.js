@@ -40,6 +40,7 @@ Query.prototype.run = async function run() {
   }
 
   const connection = await Database.getConnection();
+  console.log(query.toQuery().toString());
   const response = await query.toQuery().run(connection);
   return this.processResponse(response);
 };
@@ -67,55 +68,73 @@ Query.prototype.processResponse = async function processResponse(response: rethi
 };
 
 Query.prototype.populate = function populate(): rethinkdb.Operation {
-  const { relations } = this.model;
+  const namespace = Database.getNamespace(this.model);
   let query = this;
 
-  if (relations.hasOne) {
-    for (const [property, definition] of Object.entries(relations.hasOne)) {
-      query = query.map(function(result) {
-        return result.merge({
-          [property]: rethinkdb
-            .table(definition.model)
-            .getAll(result.getField(definition.key), {
-              index: definition.foreignKey
-            })
-            .nth(0)
-            .default(null)
-        });
-      });
-    }
-  }
+  query = this.populateHasOne(query, namespace);
+  console.log('hasOne done');
+  query = this.populateHasMany(query, namespace);
+  console.log('hasMany done');
+  query = this.populateManyToMany(query, namespace);
+  console.log('many to Many done');
 
-  if (relations.hasMany) {
-    for (let [property, definition] of Object.entries(relations.hasMany)) {
-      if (definition.manyToMany) {
-        query = query.map(function(result) {
-          return result.merge({
-            [property]: rethinkdb
-              .table(definition.tableName)
-              .getAll(result.getField('id'), {
-                index: definition.myKey
-              })
-              .coerceTo('array')
-              .map(function(result) {
-                return rethinkdb.table(definition.model).get(result.getField(definition.relationKey));
-              })
-          });
-        });
-      } else {
-        query = query.map(function(result) {
-          return result.merge({
-            [property]: rethinkdb
-              .table(definition.model)
-              .getAll(result.getField(definition.primaryKey), {
-                index: definition.key
-              })
-              .coerceTo('array')
-          });
-        });
-      }
-    }
-  }
+  return query;
+};
+
+Query.prototype.populateHasOne = function populateHasOne(query: Query, namespace: Namespace): Query {
+  console.log('populating has one');
+  namespace.forEach('hasOne', ({ property, key, foreignKey, model }) => {
+    console.log('adding map join');
+    query = query.map(result =>
+      result.merge({
+        [property]: rethinkdb
+          .table(model)
+          .getAll(result.getField(key), {
+            index: foreignKey
+          })
+          .nth(0)
+          .default(null)
+      })
+    );
+  });
+  console.log('done populating has one');
+
+  return query;
+};
+
+Query.prototype.populateHasMany = function populateHasMany(query: Query, namespace: Namespace): Query {
+  namespace.forEachHasMany(({ property, key, tableName, foreignKey, model }) => {
+    query = query.map(function(result) {
+      return result.merge({
+        [property]: rethinkdb
+          .table(tableName)
+          .getAll(result.getField('id'), {
+            index: key
+          })
+          .coerceTo('array')
+          .map(function(result) {
+            return rethinkdb.table(model).get(result.getField(foreignKey));
+          })
+      });
+    });
+  });
+
+  return query;
+};
+
+Query.prototype.populateManyToMany = function populateManyToMany(query: Query, namespace: Namespace): Query {
+  namespace.forEachManyToMany(({ property, key, primaryKey, model }) => {
+    query = query.map(function(result) {
+      return result.merge({
+        [property]: rethinkdb
+          .table(model)
+          .getAll(result.getField(primaryKey), {
+            index: key
+          })
+          .coerceTo('array')
+      });
+    });
+  });
 
   return query;
 };
@@ -235,11 +254,11 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
       args.push(name, properties.map(selectRow), options);
     }
 
-    await this.r
+    await r
       .table(tableName)
       .indexCreate(...args)
       .run();
-    await this.r
+    await r
       .table(tableName)
       .indexWait()
       .run();
