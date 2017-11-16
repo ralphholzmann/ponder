@@ -30,8 +30,9 @@ export default class Database {
   namespaces: Map<Model, Namespace>;
   static getUserDefinedConnection: (queryNumber: number) => Promise<r.Connection>;
   queryNumber: number;
-  r: Query;
+  static r: Query;
 
+  static r = new Query();
   static models = new Map();
   static namespaces = new Map();
   static queryNumber = 0;

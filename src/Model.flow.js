@@ -1,8 +1,10 @@
+import Database from './Database.flow';
 import Query from './Query';
 
-import { get, forEachAsync, getInheritedPropertyList, capitalize, lcfirst } from './util.flow';
+import { get, has, forEachAsync, getInheritedPropertyList, capitalize, lcfirst } from './util.flow';
 import type Namespace from './Namespace.flow';
-import type Database from './Database.flow';
+
+const { r } = Database;
 
 export default class Model extends Query {
   static namespace: Namespace;
@@ -24,7 +26,7 @@ export default class Model extends Query {
     const schemas = getInheritedPropertyList(this, 'schema');
     const finalSchema = Object.assign({}, ...schemas);
 
-    Object.keys(finalSchema).forEach((key: string) => namespace.addSchemaProperty(finalSchema[key]));
+    Object.keys(finalSchema).forEach((key: string) => namespace.addSchemaProperty(key, finalSchema[key]));
 
     const ReQLs = getInheritedPropertyList(this, 'ReQL');
     Object.assign(this.prototype, ReQLs);
@@ -63,7 +65,7 @@ export default class Model extends Query {
 
       namespace.addHasOne(relation);
 
-      namespace.addSchemaProperty({
+      namespace.addSchemaProperty(key, {
         type: String,
         allowNull: true,
         relation
@@ -108,32 +110,190 @@ export default class Model extends Query {
       } else {
         const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey)}`;
         const relation = {
+          primaryKey: definition.primaryKey,
           property,
           key,
           model
         };
-        namespace.addhasMany(relation);
+        namespace.addHasMany(relation);
 
-        namespace.addSchemaProperty({
+        namespace.addSchemaProperty(key, {
           type: String,
           allowNull: true,
           relation
         });
 
-        model.namespace.addSchemaProperty(key, {
+        Database.getNamespace(model).addSchemaProperty(key, {
           type: String,
           allowNull: true,
           relation: true
         });
 
-        model.namespace.addIndex(key, {
+        Database.getNamespace(model).addIndex(key, {
           properties: [key]
         });
       }
     });
   }
+
+  constructor(properties) {
+    super();
+    this.pendingUpdate = {};
+    this.oldValues = {};
+    this.defineProperties();
+    this.defineRelations();
+    this.assign(properties);
+    this.pendingUpdate = {};
+  }
+
+  defineProperties() {
+    Database.getNamespace(this.constructor).forEachSchemaProperty(([key]) => {
+      let currentValue;
+      Object.defineProperty(this, key, {
+        enumerable: true,
+        set(value) {
+          if (!this.oldValues[key]) {
+            this.oldValues[key] = currentValue;
+          }
+          currentValue = value;
+          this.pendingUpdate[key] = value;
+        },
+        get() {
+          return currentValue;
+        }
+      });
+    });
+  }
+
+  defineRelations() {
+    Database.getNamespace(this.constructor).forEachHasOne(({ property, key, foreignKey }) => {
+      let currentValue;
+
+      Object.defineProperty(this, property, {
+        enumerable: true,
+        set(value) {
+          // TODO: enforce model instance of here? maybe warn?
+          currentValue = value;
+          if (typeof value[foreignKey] !== 'undefined') {
+            this[key] = value[foreignKey];
+          } else {
+            this[key] = null;
+          }
+        },
+        get() {
+          return currentValue;
+        }
+      });
+    });
+
+    Database.getNamespace(this.constructor).forEachHasOne(
+
+    this.constructor.forEachHasMany(({ key, primaryKey, constructor, manyToMany, manyProperty }, property) => {
+      let setHandler;
+      if (manyToMany) {
+        setHandler = {
+          set: (target, prop, value) => {
+            target[prop] = value;
+
+            if (!isNaN(prop) && !value[manyProperty].includes(this)) {
+              value[manyProperty].push(this);
+            }
+
+            return true;
+          }
+        };
+      } else {
+        setHandler = {
+          set: (target, prop, value) => {
+            if (!isNaN(prop)) {
+              value[key] = this[primaryKey];
+            }
+            target[prop] = value;
+            return true;
+          }
+        };
+      }
+
+      let observer = new Proxy([], setHandler);
+
+      Object.defineProperty(this, property, {
+        enumerable: true,
+        set(value) {
+          if (!Array.isArray(value)) {
+            throw new Error(
+              `'${property}' on ${this.constructor.name} instance must be an array of ${constructor.name} instances.`
+            );
+          }
+          observer = new Proxy(value, setHandler);
+        },
+        get() {
+          return observer;
+        }
+      });
+    });
+  }
+
+  assign(properties) {
+    const { schema } = this.constructor;
+
+    if (has(properties, 'id')) {
+      this.id = properties.id;
+    }
+
+    Object.keys(schema).forEach(key => {
+      const config = schema[key];
+      let allowNull = false;
+      let type;
+      let value = properties[key];
+
+      if (config.type) {
+        type = config.type;
+
+        if ('allowNull' in config) {
+          allowNull = config.allowNull;
+        }
+        if ('default' in config && typeof value === 'undefined') {
+          value = config.default;
+        }
+      } else {
+        type = config;
+      }
+
+      if ((type === Date && typeof value === 'undefined') || (allowNull && (value === null || value === undefined))) {
+        this[key] = null;
+        return;
+      }
+
+      if (Array.isArray(type) && type !== Point) {
+        if (typeof value === 'undefined') value = [];
+
+        const subType = type[0];
+
+        this[key] = subType === undefined ? type(value) : value.map(subType);
+
+        return;
+      }
+
+      if (value !== null || value !== undefined) {
+        this[key] = type(value);
+      }
+    });
+
+    this.constructor.forEachHasOne(({ constructor }, property) => {
+      if (has(properties, property) && properties[property] !== null) {
+        this[property] = new constructor(properties[property]);
+      }
+    });
+
+    this.constructor.forEachHasMany(({ constructor }, property) => {
+      if (has(properties, property) && properties[property] !== null) {
+        this[property] = properties[property].map(record => new constructor(record));
+      }
+    });
+  }
+
   async save(options = {}) {
-    const { namespace } = this.constructor;
+    const namespace = Database.getNamespace(this.constructor);
     options = Object.assign(
       {
         STACK: new Set(),
@@ -142,9 +302,6 @@ export default class Model extends Query {
       },
       options
     );
-
-    console.log('ns', namespace);
-    console.log('cs', this.constructor);
 
     // beforeSave hooks
     await namespace.beforeSaveHooks.reduce(async (model, hook) => await hook(model), this);
@@ -162,14 +319,15 @@ export default class Model extends Query {
   }
 
   async insert(options) {
+    const namespace = Database.getNamespace(this.constructor);
     const { schema } = this.constructor;
     const payload = {};
     const unique = [];
 
     options.STACK.add(this);
 
-    await this.constructor.forEachHasOne(async ({ key, foreignKey, constructor }, property) => {
-      if (this[property] instanceof constructor) {
+    await namespace.forEachHasOne(async ({ property, key, foreignKey, model }) => {
+      if (this[property] instanceof model) {
         if (options.STACK.has(this[property])) {
           // Circular reference
           options.PENDING.push(async () => {
@@ -189,10 +347,10 @@ export default class Model extends Query {
       }
     });
 
-    Object.keys(schema).forEach(key => {
+    namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
       payload[key] = this[key];
-      if (schema[key].unique && this[key]) {
-        unique.push({ key, value: schema[key].type === String ? this[key].toLowerCase() : this[key] });
+      if (definition.unique && this[key]) {
+        unique.push({ key, value: definition.type === String ? this[key].toLowerCase() : this[key] });
       }
     });
 
@@ -206,41 +364,51 @@ export default class Model extends Query {
       .run();
     this.id = result.generated_keys[0];
 
-    await this.constructor.forEachHasMany(
-      async ({ key, primaryKey, manyToMany, tableName, keys, myKey, relationKey, modelNames }, property) => {
+    /** /
+  property: string,
+  key: string,
+  foreignKey: string,
+  model: Model,
+  // These properties are for manyToMany relations only
+  keys: string[],
+  modelNames: string[],
+  table: string,
+  foreignProperty: string
+    /**/
+
+    await namespace.forEachHasMany(async ({ property, key, foreignKey, model }) => {
+      await Promise.all(
+        this[property].map(instance => {
+          instance[key] = this[primaryKey];
+          return instance.save(options);
+        })
+      );
+
+      if (manyToMany) {
+        const relationIds = this[property].map(instance => instance.id);
         await Promise.all(
-          this[property].map(instance => {
-            instance[key] = this[primaryKey];
-            return instance.save(options);
+          relationIds.map(async relationId => {
+            const id = (this.constructor.name === modelNames[0] ? [this.id, relationId] : [relationId, this.id]).join(
+              '_'
+            );
+            await r
+              .table(tableName)
+              .insert({
+                id,
+                [myKey]: this.id,
+                [relationKey]: relationId
+              })
+              .run();
           })
         );
-
-        if (manyToMany) {
-          const relationIds = this[property].map(instance => instance.id);
-          await Promise.all(
-            relationIds.map(async relationId => {
-              const id = (this.constructor.name === modelNames[0] ? [this.id, relationId] : [relationId, this.id]).join(
-                '_'
-              );
-              await r
-                .table(tableName)
-                .insert({
-                  id,
-                  [myKey]: this.id,
-                  [relationKey]: relationId
-                })
-                .run();
-            })
-          );
-        }
       }
-    );
+    });
 
     options.STACK.delete(this);
 
     // Fix up circular references
     if (options.ROOT && options.PENDING) {
-      options.PENDING.forEach(async update => await update());
+      options.PENDING.forEach(update => update());
     }
   }
 }

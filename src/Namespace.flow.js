@@ -3,6 +3,7 @@ import { getInheritedPropertyList } from './util.flow';
 import type Model from './Model.flow';
 
 type Relation = {
+  primaryKey: string,
   property: string,
   key: string,
   foreignKey: string,
@@ -25,21 +26,17 @@ export default class Namespace {
   beforeSaveHooks: Array<Function>;
   afterSaveHooks: Array<Function>;
 
+  static forEach(array: Array<any>, iterator: Function) {
+    return array.reduce((chain, definition): Promise<any> => chain.then(() => iterator(definition)), Promise.resolve());
+  }
+
   constructor(model: Model) {
     this.model = model;
     this.name = model.name;
     this.hasOne = [];
     this.hasMany = [];
     this.manyToMany = [];
-    this.schema = new Map(
-      Object.keys(model.schema).map(property => [
-        property,
-        {
-          property,
-          ...model.schema[property]
-        }
-      ])
-    );
+    this.schema = new Map();
     this.indexes = new Map();
     if (model.indexes) {
       Object.keys(model.indexes).forEach((name: string) => this.indexes.set(name, model.indexes[name]));
@@ -59,6 +56,22 @@ export default class Namespace {
 
   addHasOne(relation: Relation) {
     this.hasOne.push(relation);
+  }
+
+  forEachSchemaProperty(iterator: Function) {
+    return Namespace.forEach(Array.from(this.schema.entries()), iterator);
+  }
+
+  forEachHasOne(iterator: Function) {
+    return Namespace.forEach(this.hasOne, iterator);
+  }
+
+  forEachHasMany(iterator: Function) {
+    return Namespace.forEach(this.hasMany, iterator);
+  }
+
+  forEachManyToMany(iterator: Function) {
+    return Namespace.forEach(this.manyToMany, iterator);
   }
 
   addHasMany(relation: Relation) {

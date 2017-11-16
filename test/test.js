@@ -98,7 +98,7 @@ test.before(async () => {
 });
 
 test.after.always(async () => {
-  await Database.teardown();
+  await Database.disconnect();
 });
 
 test.only('Saving a new model instance adds an id to the instance', async t => {
