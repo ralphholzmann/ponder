@@ -2,29 +2,27 @@
 /* eslint-disable no-use-before-define */
 import rethinkdb from 'rethinkdb';
 import ModelCursor from './ModelCursor';
-import { transforms, selectRow, assert } from './util';
-import { getInheritedPropertyList, REQL_METHODS } from './util.flow';
-import Database from './Database.flow';
-import type Model from './Model.flow';
-import type Namespace from './Namespace.flow';
+import { transforms, getInheritedPropertyList, REQL_METHODS, selectRow, assert } from './util';
+import Database from './Database';
+import type Model from './Model';
+import type Namespace from './Namespace';
 
 const { hasOwnProperty } = Object.prototype;
 
 type QueryOptions = {
-  namespace?: Namespace,
   model?: Model,
   stack?: Array<Function>,
   methods?: Array<string>,
-  returnTypes?: Array<string>,
+  returns?: Array<string>,
   notes?: Object
 };
 
 export default function Query(options: QueryOptions = {}) {
-  const { model, stack = [], methods = ['r'], returnTypes = ['r'], notes = {} } = options;
+  const { model, stack = [], methods = ['r'], returns = ['r'], notes = {} } = options;
   this.model = model;
   this.stack = stack;
   this.methods = methods;
-  this.returns = returnTypes;
+  this.returns = returns;
   this.notes = notes;
 }
 
@@ -113,15 +111,18 @@ Query.prototype.populateHasMany = function populateHasMany(query: Query, namespa
 };
 
 Query.prototype.populateManyToMany = function populateManyToMany(query: Query, namespace: Namespace): Query {
-  namespace.forEach('manyToMany', ({ property, key, primaryKey, model }) => {
+  namespace.forEach('manyToMany', ({ property, key, primaryKey, model, table, foreignKey }) => {
     query = query.map(function(result) {
       return result.merge({
         [property]: rethinkdb
-          .table(model)
-          .getAll(result.getField(primaryKey), {
+          .table(table)
+          .getAll(result.getField('id'), {
             index: key
           })
           .coerceTo('array')
+          .map(function(result) {
+            return rethinkdb.table(model.name).get(result.getField(foreignKey));
+          })
       });
     });
   });
@@ -143,19 +144,26 @@ Query.ensureTable = async function ensureTable(tableName: string): Promise<void>
 REQL_METHODS.forEach((method: string): void => {
   Query.prototype[method] = function reqlChain(...args) {
     const previousReturnType = this.returns[this.returns.length - 1];
+
     if (!transforms.get(previousReturnType)) {
       console.log('missing return type from', previousReturnType, 'to', method);
       console.log(this.methods);
       console.log(this.returns);
     }
-    const nextReturnType = transforms.get(previousReturnType).get(method);
 
     const newStack = this.stack.slice(0);
-    newStack.push(query => query[method](...args));
     const newMethods = this.methods.slice(0);
-    newMethods.push(method);
     const newReturns = this.returns.slice(0);
-    newReturns.push(nextReturnType);
+
+    newStack.push(query => query[method](...args));
+    newMethods.push(method);
+
+    try {
+      const nextReturnType = transforms.get(previousReturnType).get(method);
+      newReturns.push(nextReturnType);
+    } catch (error) {
+      console.log(error);
+    }
 
     return new this.constructor({
       model: this.model,
@@ -204,7 +212,14 @@ Query.prototype.tapFilterRight = function tapFilterRight(args) {
   });
   newMethods.splice(methodIndex, 0, 'filter');
   newReturns.splice(methodIndex + 1, 0, transforms.get(this.returns[methodIndex]).get('filter'));
-  return new this.constructor(this.model, newStack, newMethods, newReturns, this.notes);
+
+  return new this.constructor({
+    model: this.model,
+    stack: newStack,
+    methods: newMethods,
+    returns: newReturns,
+    notes: this.notes
+  });
 };
 
 Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = false }) => {

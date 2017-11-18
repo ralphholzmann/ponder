@@ -6,7 +6,7 @@
   "author": "Ralph Holzmann",
   "license": "MIT",
   "scripts": {
-    "test": "cross-env NODE_ENV='test' babel-node ./node_modules/.bin/ava --serial --verbose --timeout=8s test",
+    "test": "cross-env NODE_ENV='test' babel-node ./node_modules/.bin/ava --serial --timeout=15s test/tests",
     "lint": "eslint src test",
     "prettier": "prettier --write \"{src,test}/**/*.js\"",
     "compile": "babel src --out-dir lib",

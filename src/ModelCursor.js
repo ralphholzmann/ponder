@@ -1,7 +1,7 @@
 /* @flow */
 import rethinkdb from 'rethinkdb';
 import Change from './Change';
-import type Model from './Model.flow';
+import type Model from './Model';
 
 export default class ModelCursor {
   Model: Model;

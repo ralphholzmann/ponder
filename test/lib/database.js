@@ -1,5 +1,6 @@
-import Database from '../../lib/Database.flow';
+import Database from '../../lib/Database';
 
+Error.stackTraceLimit = 40;
 const TEST_DATABASE_NAME = '__ponder_tests__';
 
 Database.config({

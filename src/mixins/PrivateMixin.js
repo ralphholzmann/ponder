@@ -1,6 +1,6 @@
 const NAMESPACE = Symbol('ProtectedMixin');
 
-module.exports = superclass => {
+export default superclass =>
   class PrivateMixin extends superclass {
     setContext(context) {
       this[NAMESPACE] = {
@@ -13,7 +13,11 @@ module.exports = superclass => {
       return Object.keys(this.constructor.schema).reduce((json, property) => {
         const config = this.constructor.schema[property];
         if (config.type) {
-          if (config.private === false || (typeof config.private === 'function' && config.private(this, context))) {
+          if (
+            config.private === false ||
+            config.private === undefined ||
+            (typeof config.private === 'function' && config.private(this, context))
+          ) {
             json[property] = this[property];
           }
         } else {
@@ -22,7 +26,4 @@ module.exports = superclass => {
         return json;
       }, {});
     }
-  }
-
-  return PrivateMixin;
-};
+  };

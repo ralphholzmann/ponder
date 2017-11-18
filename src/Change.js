@@ -1,8 +1,8 @@
 /* @flow */
 /* eslint-disable camelcase */
-import Database from './Database.flow';
-import type Model from './Model.flow';
-import type Namespace from './Namespace.flow';
+import Database from './Database';
+import type Model from './Model';
+import type Namespace from './Namespace';
 
 type Record = {
   id: string
