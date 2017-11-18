@@ -4,6 +4,7 @@ import Namespace from './Namespace';
 import Query from './Query';
 import type Model from './Model';
 
+const isTesting = process.env.NODE_ENV === 'test';
 const DEFAULT_RETHINKDB_HOST = 'localhost';
 const DEFAULT_RETHINKDB_PORT = 28015;
 const DEFAULT_RETHINKDB_DB = 'test';
@@ -26,15 +27,14 @@ export default class Database {
   static user: string;
   static password: string;
   static connection: r.Connection;
-  models: Map<string, Model>;
-  namespaces: Map<Model, Namespace>;
+  static models: Map<string, Class<Model>>;
   static getUserDefinedConnection: (queryNumber: number) => Promise<r.Connection>;
-  queryNumber: number;
+  static queryNumber: number;
   static r: Query;
 
   static r = new Query();
   static models = new Map();
-  static namespaces = new Map();
+  static namespaces: Map<Class<Model>, Namespace> = new Map();
   static queryNumber = 0;
 
   static config({ host, port, db, user, password, getConnection }: config) {
@@ -58,8 +58,16 @@ export default class Database {
   }
 
   static async connect(): Promise<void> {
+    const databases = await this.execute(r.dbList());
+    if (isTesting && databases.indexOf(this.db) !== -1) {
+      try {
+        await this.execute(r.dbDrop(this.db));
+      } catch (error) {
+        throw new Error(error);
+      }
+    }
     await this.ensureDatabase();
-    await Array.from(this.models.values()).reduce(async (chain, model) => {
+    await Array.from(this.models.values()).reduce(async (chain, model: Class<Model>) => {
       return chain.then(() => model.setup(this.namespaces.get(model), this.models));
     }, Promise.resolve());
   }
@@ -82,13 +90,13 @@ export default class Database {
     await this.disconnect();
   }
 
-  static register(model: Model): void {
+  static register(model: Class<Model>): void {
     const namespace = new Namespace(model);
     this.namespaces.set(model, namespace);
     this.models.set(model.name, model);
   }
 
-  static getNamespace(model: Model) {
+  static getNamespace(model: Class<Model>): Namespace {
     return this.namespaces.get(model);
   }
 

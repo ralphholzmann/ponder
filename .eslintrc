@@ -1,7 +1,7 @@
 {
   "parser": "babel-eslint",
-  "extends": ["airbnb", "prettier"],
-  "plugins": ["prettier"],
+  "extends": ["airbnb", "prettier", "plugin:flowtype/recommended"],
+  "plugins": ["prettier", "flowtype"],
   "rules": {
     "comma-dangle": ["error", "never"],
     "prettier/prettier": "error",

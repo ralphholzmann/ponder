@@ -1,8 +1,11 @@
+/* @flow */
 import Database from './Database';
 import Query from './Query';
 import Point from './Point';
 import { get, has, forEachAsync, getInheritedPropertyList, capitalize, lcfirst, REQL_METHODS } from './util';
+
 import type Namespace from './Namespace';
+import type { Record } from './util';
 
 const { r } = Database;
 
@@ -10,12 +13,13 @@ export default class Model {
   static namespace: Namespace;
   static databases: Array<Database>;
   static databases = [];
+  static name: string;
 
-  static async getForEachAsync(property: string, iterator: () => Promise<void>): Promise<void> {
+  static async getForEachAsync(property: string, iterator: Function): Promise<void> {
     return forEachAsync(get(this, property), iterator);
   }
 
-  static async setup(namespace: Namespace, models: Map): Promise<void> {
+  static async setup(namespace: Namespace, models: Map<string, Class<Model>>): Promise<void> {
     this.applyMixins(namespace);
     await this.ensureUniqueLookupTables(namespace);
     await Query.ensureTable(this.name);
@@ -195,7 +199,7 @@ export default class Model {
     );
   }
 
-  constructor(properties) {
+  constructor(properties: Record) {
     this.pendingUpdate = {};
     this.oldValues = {};
     this.defineProperties();

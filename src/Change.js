@@ -3,10 +3,7 @@
 import Database from './Database';
 import type Model from './Model';
 import type Namespace from './Namespace';
-
-type Record = {
-  id: string
-} | null;
+import type { Record } from './util';
 
 type ChangeRecord = {
   old_val: Record,
@@ -19,12 +16,12 @@ export default class Change {
   new_val: Record;
   namespace: Namespace;
 
-  constructor(model: Model, change: ChangeRecord) {
+  constructor(ModelConstructor: Function, change: ChangeRecord) {
     const { old_val, new_val } = change;
-    this.Model = model;
-    this.old_val = old_val === null ? null : new this.Model(old_val);
-    this.new_val = new_val === null ? null : new this.Model(new_val);
-    this.namespace = Database.getNamespace(model);
+    this.Model = ModelConstructor;
+    this.old_val = old_val === null ? null : new ModelConstructor(old_val);
+    this.new_val = new_val === null ? null : new ModelConstructor(new_val);
+    this.namespace = Database.getNamespace(ModelConstructor);
   }
 
   diff() {

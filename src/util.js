@@ -3,9 +3,17 @@
 import rethinkdb from 'rethinkdb';
 import type Model from './Model';
 
+interface Indexable {
+  [key: string]: string;
+}
+
+export type Record = {
+  id: string
+} | null;
+
 const BASE_PROTO = Object.getPrototypeOf(class {});
 
-export const get = (object: {}, path: string): mixed => {
+export const get = (object: Object, path: string): mixed => {
   const [property, ...rest] = path.split('.');
   if (has(object, property) && rest.length) {
     return get(object[property], rest.join('.'));
@@ -22,7 +30,7 @@ export const has = (object: {}, path: string): boolean => {
   return hasProperty;
 };
 
-export const getInheritedPropertyList = (prototype: {} | Model, property: string): Array<any> => {
+export const getInheritedPropertyList = (prototype: Indexable | Model, property: string): Array<any> => {
   const result = [];
   const nextPrototype = Object.getPrototypeOf(prototype);
 

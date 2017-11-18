@@ -2,7 +2,7 @@
   "name": "ponder",
   "version": "1.0.0-alpha.5",
   "description": "ES2017 RethinkDB ORM",
-  "main": "src/index.js",
+  "main": "lib/index.js",
   "author": "Ralph Holzmann",
   "license": "MIT",
   "scripts": {
@@ -22,7 +22,7 @@
   "devDependencies": {
     "ava": "^0.22.0",
     "babel-cli": "^6.26.0",
-    "babel-eslint": "^7.2.3",
+    "babel-eslint": "^8.0.2",
     "babel-plugin-transform-class-properties": "^6.24.1",
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "babel-preset-flow": "^6.23.0",
@@ -31,6 +31,7 @@
     "eslint-config-airbnb": "^15.0.1",
     "eslint-config-prettier": "^2.6.0",
     "eslint-plugin-async-await": "0.0.0",
+    "eslint-plugin-flowtype": "^2.39.1",
     "eslint-plugin-import": "^2.3.0",
     "eslint-plugin-jsx-a11y": "^5.0.3",
     "eslint-plugin-prettier": "^2.3.1",
