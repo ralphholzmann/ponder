@@ -1,6 +1,7 @@
 import test from 'ava';
-import { Database, Model } from '../src';
-import TimeStampMixin from '../src/mixins/Timestamp';
+import { Model } from '../../lib';
+import Database from '../lib/database';
+import TimeStampMixin from '../../lib/mixins/Timestamp';
 
 const TWEET_LENGTH = 140;
 
@@ -9,22 +10,21 @@ class Tweet extends Model.with(TimeStampMixin) {
     text: String
   };
 
-  static async beforeSave(tweet) {
+  static beforeSave(tweet) {
     tweet.hookRan = true;
     if (tweet.text.length > TWEET_LENGTH) {
       throw new Error('Tweet is too long!');
     }
+
+    return tweet;
   }
 }
 
+Database.register(Tweet);
+
 test.before(async () => {
-  Database.config({
-    db: 'test_db'
-  });
   await Database.connect();
 });
-
-Database.register(Tweet);
 
 test('beforeSave hook executes successfully', async t => {
   const tweet = new Tweet({

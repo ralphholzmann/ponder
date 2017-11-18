@@ -1,6 +1,7 @@
 import test from 'ava';
-import { Database, Model } from '../../src';
-import PrivateMixin from '../../src/mixins/PrivateMixin';
+import { Model } from '../../../lib';
+import Database from '../../lib/database';
+import PrivateMixin from '../../../lib/mixins/PrivateMixin.js';
 
 class AppUser extends Model.with(PrivateMixin) {
   static schema = {
@@ -16,14 +17,11 @@ class AppUser extends Model.with(PrivateMixin) {
   };
 }
 
+Database.register(AppUser);
+
 test.before(async () => {
-  Database.config({
-    db: 'test_db'
-  });
   await Database.connect();
 });
-
-Database.register(AppUser);
 
 test('Private properties are hidden from payloads correctly', async t => {
   const appUser1 = new AppUser({

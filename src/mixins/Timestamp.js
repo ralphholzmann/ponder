@@ -1,20 +1,17 @@
 const { has } = require('../util');
 
-module.exports = superclass => {
-  class TimeStamp extends superclass {}
+export default superclass =>
+  class TimeStamp extends superclass {
+    static schema = {
+      created: Date,
+      updated: Date
+    };
 
-  TimeStamp.schema = {
-    created: Date,
-    updated: Date
-  };
+    static beforeSave(record) {
+      if (!has(record, 'id')) {
+        record.created = new Date();
+      }
 
-  TimeStamp.beforeSave = record => {
-    if (!has(record, 'id')) {
-      record.created = new Date();
+      record.updated = new Date();
     }
-
-    record.updated = new Date();
   };
-
-  return TimeStamp;
-};

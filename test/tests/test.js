@@ -1,6 +1,7 @@
 import test from 'ava';
 import r from 'rethinkdb';
-import { Database, Model, Point } from '../src';
+import { Model, Point } from '../../lib';
+import Database, { TEST_DATABASE_NAME } from '../lib/database';
 
 class Era extends Model {
   static schema = {
@@ -35,7 +36,7 @@ class Place extends Model {
 
 class Character extends Model {
   static schema = {
-    name: { type: String, unique: true },
+    name: { type: String, allowNull: true, unique: true },
     nickname: { type: String, allowNull: true, unique: true },
     age: { type: Number, allowNull: true },
     magicType: { type: String, allowNull: true },
@@ -93,9 +94,6 @@ Database.register(Era);
 Database.register(Place);
 
 test.before(async () => {
-  Database.config({
-    db: 'test_db'
-  });
   await Database.connect();
 });
 
@@ -345,7 +343,7 @@ test('sets array proprety to empty array if array is empty', async t => {
 });
 
 test('unique property creates index table to enforce uniqueness', async t => {
-  const tableList = await Database.execute(r.db('test_db').tableList());
+  const tableList = await Database.execute(r.db(TEST_DATABASE_NAME).tableList());
   t.not(tableList.indexOf('Character_name_unique'), -1);
 });
 

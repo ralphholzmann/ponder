@@ -1,31 +1,42 @@
 {
   "name": "ponder",
-  "version": "1.0.0-alpha.10",
+  "version": "1.0.0-beta.1",
   "description": "ES2017 RethinkDB ORM",
-  "main": "src/index.js",
+  "main": "lib/index.js",
   "author": "Ralph Holzmann",
   "license": "MIT",
   "scripts": {
-    "test": "cross-env NODE_ENV='test' ava --serial --verbose --timeout=8s test",
+    "test": "cross-env NODE_ENV='test' babel-node ./node_modules/.bin/ava --serial --timeout=15s test/tests",
     "lint": "eslint src test",
-    "prettier": "prettier --write \"{src,test}/**/*.js\""
+    "prettier": "prettier --write \"{src,test}/**/*.js\"",
+    "compile": "babel src --out-dir lib",
+    "prepublish": "yarn run compile",
+    "pretest": "yarn run compile"
   },
   "dependencies": {
+    "babel-preset-env": "^1.6.1",
+    "debug": "^3.1.0",
+    "immutable": "^3.8.2",
     "rethinkdb": "^2.3.3"
   },
   "devDependencies": {
     "ava": "^0.22.0",
-    "babel-eslint": "^7.2.3",
+    "babel-cli": "^6.26.0",
+    "babel-eslint": "^8.0.2",
     "babel-plugin-transform-class-properties": "^6.24.1",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-preset-flow": "^6.23.0",
     "cross-env": "^5.0.0",
     "eslint": "^3.19.0",
     "eslint-config-airbnb": "^15.0.1",
     "eslint-config-prettier": "^2.6.0",
     "eslint-plugin-async-await": "0.0.0",
+    "eslint-plugin-flowtype": "^2.39.1",
     "eslint-plugin-import": "^2.3.0",
     "eslint-plugin-jsx-a11y": "^5.0.3",
     "eslint-plugin-prettier": "^2.3.1",
     "eslint-plugin-react": "^7.0.1",
+    "flow-bin": "^0.57.3",
     "prettier": "^1.7.4"
   },
   "optionalDependencies": {

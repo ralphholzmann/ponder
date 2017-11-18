@@ -1,25 +1,30 @@
-const Change = require('./Change');
+/* @flow */
+import rethinkdb from 'rethinkdb';
+import Change from './Change';
+import type Model from './Model';
 
-class ModelCursor {
-  constructor(Model, cursor) {
-    this.Model = Model;
+export default class ModelCursor {
+  Model: Model;
+  cursor: rethinkdb.Cursor;
+
+  constructor(model: Model, cursor: rethinkdb.Cursor) {
+    this.Model = model;
     this.cursor = cursor;
   }
 
-  each(callback) {
-    this.callback = callback;
-    this.cursor.each(this.onChange.bind(this));
+  each(callback: Function): void {
+    this.cursor.each(this.onChange.bind(this, callback));
   }
 
-  onChange(error, change) {
+  onChange(callback: Function, error: rethinkdb.ReqlError, change: Object): void {
     if (error) {
-      this.callback(error);
+      callback(error);
     } else {
-      this.callback(new Change(this.Model, change));
+      callback(new Change(this.Model, change));
     }
   }
 
-  async next(callback) {
+  async next(callback: Function): Promise<any> {
     try {
       const record = await this.cursor.next();
       const model = new this.Model(record);
@@ -35,9 +40,7 @@ class ModelCursor {
     }
   }
 
-  close() {
+  close(): Promise<void> {
     return this.cursor.close();
   }
 }
-
-module.exports = ModelCursor;

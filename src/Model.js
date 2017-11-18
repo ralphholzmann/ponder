@@ -1,43 +1,225 @@
-const { RQL_METHODS, get, has, capitalize, lcfirst, forEachAsync } = require('./util');
-const Query = require('./Query');
-const Point = require('./Point');
+/* @flow */
+import Database from './Database';
+import Query from './Query';
+import Point from './Point';
+import { get, has, forEachAsync, getInheritedPropertyList, capitalize, lcfirst, REQL_METHODS } from './util';
 
-const INSERT = Symbol('insert');
-const UPDATE = Symbol('update');
-const STACK = Symbol('stack');
-const PENDING = Symbol('pending');
-const ROOT = Symbol('root');
+import type Namespace from './Namespace';
+import type { Record } from './util';
 
-const pendingUpdate = Symbol('pendingUpdate');
-const oldValues = Symbol('oldValues');
-const defineProperties = Symbol('defineProperties');
-const defineRelations = Symbol('defineRelations');
+const { r } = Database;
 
-const BASE_PROTO = Object.getPrototypeOf(class {});
-const { r } = Query;
+export default class Model {
+  static namespace: Namespace;
+  static databases: Array<Database>;
+  static databases = [];
+  static name: string;
 
-class Model {
-  constructor(properties) {
-    this[pendingUpdate] = {};
-    this[oldValues] = {};
-    this[defineProperties]();
-    this[defineRelations]();
-
-    this.assign(properties);
-    this[pendingUpdate] = {};
+  static async getForEachAsync(property: string, iterator: Function): Promise<void> {
+    return forEachAsync(get(this, property), iterator);
   }
 
-  [defineProperties]() {
-    Object.keys(this.constructor.schema).forEach(key => {
+  static async setup(namespace: Namespace, models: Map<string, Class<Model>>): Promise<void> {
+    this.applyMixins(namespace);
+    await this.ensureUniqueLookupTables(namespace);
+    await Query.ensureTable(this.name);
+    await this.setupRelations(namespace, models);
+    await this.createIndexes(namespace);
+  }
+
+  static applyMixins(namespace: Namespace): void {
+    const schemas = getInheritedPropertyList(this, 'schema');
+    const finalSchema = Object.assign({}, ...schemas);
+    Object.keys(finalSchema).forEach((key: string) => namespace.addSchemaProperty(key, finalSchema[key]));
+    const CustomReQLList = getInheritedPropertyList(this, 'ReQL');
+    const CustomReQL = {};
+    if (CustomReQLList.length) {
+      Object.assign(CustomReQL, ...CustomReQLList);
+    }
+
+    class ModelQuery extends Query {}
+
+    REQL_METHODS.forEach(method => {
+      this[method] = function rqlProxy(...args) {
+        const query = new ModelQuery({ model: this }).table(this.name);
+        return query[method](...args);
+      };
+    });
+
+    Object.assign(ModelQuery.prototype, CustomReQL);
+    Object.keys(CustomReQL).forEach(method => {
+      this[method] = function rqlProxy(...args) {
+        const query = new ModelQuery(this).table(this.name);
+        return query[method](...args);
+      };
+    });
+
+    this.run = () => new ModelQuery(this).table(this.name).run();
+  }
+
+  static async ensureUniqueLookupTables(namespace: Namespace): Promise<void> {
+    const uniqueProperties = namespace.filterSchema('unique');
+
+    if (uniqueProperties.length === 0) return;
+
+    uniqueProperties.forEach(async ({ property }) => {
+      const tableName = `${this.name}_${property}_unique`;
+      await Query.ensureTable(tableName);
+      this[`is${capitalize(property)}Unique`] = async value =>
+        !await r
+          .table(tableName)
+          .get(value.toLowerCase())
+          .run();
+    });
+  }
+
+  static with(...args) {
+    return args.reduce((superclass, mixin) => mixin(superclass), Model);
+  }
+
+  static async setupRelations(namespace: Namespace, models: Map): Promise<void> {
+    this.getForEachAsync('relations.hasOne', (definition: Object, property: string) => {
+      const foreignKey = definition.foreignKey || 'id';
+      const key = `${property}${capitalize(foreignKey)}`;
+      const relation = {
+        property,
+        key,
+        foreignKey,
+        model: models.get(definition.model)
+      };
+
+      namespace.addHasOne(relation);
+
+      namespace.addSchemaProperty(key, {
+        type: String,
+        allowNull: true,
+        relation
+      });
+    });
+
+    await this.getForEachAsync('relations.hasMany', async (definition: Object, property: string) => {
+      const model = models.get(definition.model);
+      let manyToMany;
+
+      model.getForEachAsync('relations.hasMany', (foreignDefinition, foreignProperty) => {
+        if (models.get(foreignDefinition.model) === this) {
+          manyToMany = [foreignProperty, model];
+        }
+      });
+
+      if (manyToMany) {
+        const [foreignProperty, manyModel] = manyToMany;
+        const key = `${lcfirst(this.name)}Id`;
+        const foreignKey = `${lcfirst(manyModel.name)}Id`;
+        const keys = [key, foreignKey].sort();
+        const table = [[this.name, property].join('_'), [manyModel.name, foreignProperty].join('_')].sort().join('__');
+        const modelNames = [this.name, manyModel.name].sort();
+
+        namespace.addManyToMany({
+          property,
+          model,
+          key,
+          foreignKey,
+          keys,
+          table,
+          foreignProperty,
+          modelNames
+        });
+
+        await Query.ensureTable(table);
+        await Query.ensureIndex(table, {
+          properties: [keys[0]]
+        });
+        await Query.ensureIndex(table, {
+          properties: [keys[1]]
+        });
+      } else {
+        const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey)}`;
+        const relation = {
+          primaryKey: definition.primaryKey,
+          property,
+          key,
+          model
+        };
+        namespace.addHasMany(relation);
+
+        namespace.addSchemaProperty(key, {
+          type: String,
+          allowNull: true,
+          relation
+        });
+
+        Database.getNamespace(model).addSchemaProperty(key, {
+          type: String,
+          allowNull: true,
+          relation: true
+        });
+
+        Database.getNamespace(model).addIndex(key, {
+          properties: [key]
+        });
+      }
+    });
+  }
+
+  static async createIndexes(namespace: Namespace) {
+    await namespace.forEachIndexAsync(([name, definition]) => Query.ensureIndex(this.name, { name, ...definition }));
+  }
+
+  static async createUniqueLookups(keys, model) {
+    const result = await Promise.all(
+      keys.map(({ key, value: id }) =>
+        r
+          .table(`${model}_${key}_unique`)
+          .insert({ id })
+          .run()
+      )
+    );
+    const errorIndex = result.findIndex(({ errors }) => errors > 0);
+    if (errorIndex > -1) {
+      await Promise.all(
+        result.filter(({ errors }) => errors === 0).map((item, index) =>
+          r
+            .table(`${model}_${result[index].key}_unique`)
+            .get(result[index].value)
+            .delete()
+            .run()
+        )
+      );
+      throw new Error(`'${model}.${keys[errorIndex].key}' must be unique`);
+    }
+    await Promise.all(
+      keys.filter(key => key.oldValue).map(({ key, oldValue: id }) =>
+        r
+          .table(`${model}_${key}_unique`)
+          .get(id)
+          .delete()
+          .run()
+      )
+    );
+  }
+
+  constructor(properties: Record) {
+    this.pendingUpdate = {};
+    this.oldValues = {};
+    this.defineProperties();
+    this.defineRelations();
+    this.assign(properties);
+    this.pendingUpdate = {};
+  }
+
+  defineProperties() {
+    Database.getNamespace(this.constructor).forEachSchemaProperty(([key]) => {
       let currentValue;
       Object.defineProperty(this, key, {
         enumerable: true,
         set(value) {
-          if (!this[oldValues][key]) {
-            this[oldValues][key] = currentValue;
+          if (!this.oldValues[key]) {
+            this.oldValues[key] = currentValue;
           }
           currentValue = value;
-          this[pendingUpdate][key] = value;
+
+          this.pendingUpdate[key] = value;
         },
         get() {
           return currentValue;
@@ -46,8 +228,14 @@ class Model {
     });
   }
 
-  [defineRelations]() {
-    this.constructor.forEachHasOne(({ key, foreignKey }, property) => {
+  defineRelations() {
+    this.defineHasOneRelations();
+    this.defineHasManyRelations();
+    this.defineManyToManyRelations();
+  }
+
+  defineHasOneRelations() {
+    Database.getNamespace(this.constructor).forEachHasOne(({ property, key, foreignKey }) => {
       let currentValue;
 
       Object.defineProperty(this, property, {
@@ -66,32 +254,52 @@ class Model {
         }
       });
     });
+  }
 
-    this.constructor.forEachHasMany(({ key, primaryKey, constructor, manyToMany, manyProperty }, property) => {
-      let setHandler;
-      if (manyToMany) {
-        setHandler = {
-          set: (target, prop, value) => {
-            target[prop] = value;
-
-            if (!isNaN(prop) && !value[manyProperty].includes(this)) {
-              value[manyProperty].push(this);
-            }
-
-            return true;
+  defineHasManyRelations() {
+    Database.getNamespace(this.constructor).forEachHasMany(({ key, property, primaryKey, constructor }) => {
+      const setHandler = {
+        set: (target, prop, value) => {
+          if (!isNaN(prop)) {
+            value[key] = this[primaryKey];
           }
-        };
-      } else {
-        setHandler = {
-          set: (target, prop, value) => {
-            if (!isNaN(prop)) {
-              value[key] = this[primaryKey];
-            }
-            target[prop] = value;
-            return true;
+          target[prop] = value;
+          return true;
+        }
+      };
+
+      let observer = new Proxy([], setHandler);
+
+      Object.defineProperty(this, property, {
+        enumerable: true,
+        set(value) {
+          if (!Array.isArray(value)) {
+            throw new Error(
+              `'${property}' on ${this.constructor.name} instance must be an array of ${constructor.name} instances.`
+            );
           }
-        };
-      }
+          observer = new Proxy(value, setHandler);
+        },
+        get() {
+          return observer;
+        }
+      });
+    });
+  }
+
+  defineManyToManyRelations() {
+    Database.getNamespace(this.constructor).forEachManyToMany(({ property, constructor, foreignProperty }) => {
+      const setHandler = {
+        set: (target, prop, value) => {
+          target[prop] = value;
+
+          if (!isNaN(prop) && !value[foreignProperty].includes(this)) {
+            value[foreignProperty].push(this);
+          }
+
+          return true;
+        }
+      };
 
       let observer = new Proxy([], setHandler);
 
@@ -113,29 +321,28 @@ class Model {
   }
 
   assign(properties) {
-    const { schema } = this.constructor;
+    const namespace = Database.getNamespace(this.constructor);
 
     if (has(properties, 'id')) {
       this.id = properties.id;
     }
 
-    Object.keys(schema).forEach(key => {
-      const config = schema[key];
+    namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
       let allowNull = false;
       let type;
       let value = properties[key];
 
-      if (config.type) {
-        type = config.type;
+      if (definition.type) {
+        type = definition.type;
 
-        if ('allowNull' in config) {
-          allowNull = config.allowNull;
+        if ('allowNull' in definition) {
+          allowNull = definition.allowNull;
         }
-        if ('default' in config && typeof value === 'undefined') {
-          value = config.default;
+        if ('default' in definition && typeof value === 'undefined') {
+          value = definition.default;
         }
       } else {
-        type = config;
+        type = definition;
       }
 
       if ((type === Date && typeof value === 'undefined') || (allowNull && (value === null || value === undefined))) {
@@ -158,138 +365,71 @@ class Model {
       }
     });
 
-    this.constructor.forEachHasOne(({ constructor }, property) => {
+    Database.getNamespace(this.constructor).forEachHasOne(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
-        this[property] = new constructor(properties[property]);
+        this[property] = new model(properties[property]);
       }
     });
 
-    this.constructor.forEachHasMany(({ constructor }, property) => {
+    Database.getNamespace(this.constructor).forEachHasMany(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
-        this[property] = properties[property].map(record => new constructor(record));
+        this[property] = properties[property].map(record => new model(record));
+      }
+    });
+
+    Database.getNamespace(this.constructor).forEachManyToMany(({ property, model }) => {
+      if (has(properties, property) && properties[property] !== null) {
+        this[property] = properties[property].map(record => new model(record));
       }
     });
   }
 
   async save(options = {}) {
+    const namespace = Database.getNamespace(this.constructor);
+    const model = this;
     options = Object.assign(
       {
-        [STACK]: new Set(),
-        [PENDING]: [],
-        [ROOT]: true
+        STACK: new Set(),
+        PENDING: [],
+        ROOT: true
       },
       options
     );
 
     // beforeSave hooks
-    await (async function runBeforeSaveHooks(model, classDef) {
-      if (classDef.beforeSave) {
-        await classDef.beforeSave(model);
-      }
-
-      if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
-        await runBeforeSaveHooks(model, Object.getPrototypeOf(classDef));
-      }
-    })(this, this.constructor);
+    await namespace.beforeSaveHooks.reduce(async (chain, hook) => chain.then(() => hook(model)), Promise.resolve());
 
     if (has(this, 'id')) {
-      await this[UPDATE](options);
+      await this.update(options);
     } else {
-      await this[INSERT](options);
+      await this.insert(options);
     }
 
     // afterSave hooks
-    await (async function runAfterSaveHooks(model, classDef) {
-      if (classDef.beforeSave) {
-        await classDef.beforeSave(model);
-      }
-
-      if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
-        await runAfterSaveHooks(model, Object.getPrototypeOf(classDef));
-      }
-    })(this, this.constructor);
+    await namespace.afterSaveHooks.reduce(async (chain, hook) => chain.then(() => hook(model)), Promise.resolve());
 
     return this;
   }
 
-  async [UPDATE]() {
-    const { schema, name } = this.constructor;
-    const unique = Object.keys(schema).reduce((reduction, key) => {
-      if (schema[key].unique && this[pendingUpdate][key]) {
-        reduction.push({
-          key,
-          value: schema[key].type === String ? this[pendingUpdate][key].toLowerCase() : this[pendingUpdate][key],
-          oldValue: schema[key].type === String ? this[oldValues][key].toLowerCase() : this[oldValues][key]
-        });
-      }
-      return reduction;
-    }, []);
-    if (unique.length > 0) {
-      await this.constructor.createUniqueLookups(unique, name);
-    }
-    await r
-      .table(name)
-      .get(this.id)
-      .update(this[pendingUpdate])
-      .run();
-
-    await this.constructor.forEachHasMany(
-      async ({ key, primaryKey, manyToMany, tableName, keys, myKey, relationKey, modelNames }, property) => {
-        if (manyToMany) {
-          // TODO(ralph): Make this smarter, only remove the relations that are actually removed instead of nuking and rewriting
-          /** /
-          await r
-            .table(tableName)
-            .getAll(this.id, {
-              index: myKey
-            })
-            .delete()
-            .run();
-          /**/
-          const relationIds = this[property].map(instance => instance.id);
-          await Promise.all(
-            relationIds.map(async relationId => {
-              const id = (this.constructor.name === modelNames[0] ? [this.id, relationId] : [relationId, this.id]).join(
-                '_'
-              );
-              await r
-                .table(tableName)
-                .insert({
-                  id,
-                  [myKey]: this.id,
-                  [relationKey]: relationId
-                })
-                .run();
-            })
-          );
-        }
-      }
-    );
-
-    this[pendingUpdate] = {};
-    this[oldValues] = {};
-    return this;
-  }
-
-  async [INSERT](options) {
-    const { schema } = this.constructor;
+  async insert(options) {
+    const namespace = Database.getNamespace(this.constructor);
     const payload = {};
     const unique = [];
 
-    options[STACK].add(this);
+    options.STACK.add(this);
 
-    await this.constructor.forEachHasOne(async ({ key, foreignKey, constructor }, property) => {
-      if (this[property] instanceof constructor) {
-        if (options[STACK].has(this[property])) {
+    await namespace.forEachHasOneAsync(async ({ property, key, foreignKey, model }) => {
+      if (this[property] instanceof model) {
+        if (options.STACK.has(this[property])) {
           // Circular reference
-          options[PENDING].push(async () => {
+          options.PENDING.push(async () => {
             this[key] = this[property][foreignKey];
-            await this[UPDATE]();
+            await this.update();
           });
         } else {
           await this[property].save(
             Object.assign({}, options, {
-              [ROOT]: false
+              ROOT: false
             })
           );
           if (typeof this[property][foreignKey] !== 'undefined') {
@@ -299,10 +439,10 @@ class Model {
       }
     });
 
-    Object.keys(schema).forEach(key => {
+    await namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
       payload[key] = this[key];
-      if (schema[key].unique && this[key]) {
-        unique.push({ key, value: schema[key].type === String ? this[key].toLowerCase() : this[key] });
+      if (definition.unique && this[key]) {
+        unique.push({ key, value: definition.type === String ? this[key].toLowerCase() : this[key] });
       }
     });
 
@@ -316,16 +456,92 @@ class Model {
       .run();
     this.id = result.generated_keys[0];
 
-    await this.constructor.forEachHasMany(
-      async ({ key, primaryKey, manyToMany, tableName, keys, myKey, relationKey, modelNames }, property) => {
-        await Promise.all(
-          this[property].map(instance => {
-            instance[key] = this[primaryKey];
-            return instance.save(options);
-          })
-        );
+    await namespace.forEachHasManyAsync(async ({ property, key, primaryKey }) => {
+      await Promise.all(
+        this[property].map(instance => {
+          instance[key] = this[primaryKey];
+          return instance.save(options);
+        })
+      );
+    });
 
+    await namespace.forEachManyToManyAsync(async ({ property, key, table, primaryKey, modelNames, keys }) => {
+      await Promise.all(
+        this[property].map(instance => {
+          instance[key] = this[primaryKey];
+          return instance.save(options);
+        })
+      );
+
+      const relationIds = this[property].map(instance => instance.id);
+
+      await Promise.all(
+        relationIds.map(async relationId => {
+          const [key1, key2] = keys;
+          let ids;
+
+          if (this.constructor.name === modelNames[0]) {
+            ids = [this.id, relationId];
+          } else {
+            ids = [relationId, this.id];
+          }
+          const [value1, value2] = ids;
+
+          await r
+            .table(table)
+            .insert({
+              id: ids.join('_'),
+              [key1]: value1,
+              [key2]: value2
+            })
+            .run();
+        })
+      );
+    });
+
+    options.STACK.delete(this);
+
+    // Fix up circular references
+    if (options.ROOT && options.PENDING) {
+      options.PENDING.forEach(update => update());
+    }
+  }
+
+  async update(options) {
+    const namespace = Database.getNamespace(this.constructor);
+    const { schema, name } = this.constructor;
+    const unique = Object.keys(schema).reduce((reduction, key) => {
+      if (schema[key].unique && this.pendingUpdate[key]) {
+        reduction.push({
+          key,
+          value: schema[key].type === String ? this.pendingUpdate[key].toLowerCase() : this.pendingUpdate[key],
+          oldValue: schema[key].type === String ? this.oldValues[key].toLowerCase() : this.oldValues[key]
+        });
+      }
+      return reduction;
+    }, []);
+
+    if (unique.length > 0) {
+      await this.constructor.createUniqueLookups(unique, name);
+    }
+
+    await r
+      .table(name)
+      .get(this.id)
+      .update(this.pendingUpdate)
+      .run();
+
+    await namespace.forEachHasMany(
+      async ({ key, primaryKey, manyToMany, tableName, keys, myKey, relationKey, modelNames }, property) => {
         if (manyToMany) {
+          // TODO(ralph): Make this smarter, only remove the relations that are actually removed instead of nuking and rewriting
+          await r
+            .table(tableName)
+            .getAll(this.id, {
+              index: myKey
+            })
+            .delete()
+            .run();
           const relationIds = this[property].map(instance => instance.id);
           await Promise.all(
             relationIds.map(async relationId => {
@@ -346,211 +562,8 @@ class Model {
       }
     );
 
-    options[STACK].delete(this);
-
-    // Fix up circular references
-    if (options[ROOT] && options[PENDING]) {
-      options[PENDING].forEach(async update => {
-        await update();
-      });
-    }
+    this.pendingUpdate = {};
+    this.oldValues = {};
+    return this;
   }
 }
-
-Model.getForEachAsync = async function getForEachAsync(property, iterator) {
-  await forEachAsync(get(this, property), iterator);
-};
-
-Model.setup = async function modelSetup(tableList, models) {
-  this.applyMixins();
-  await this.ensureUniqueLookupTables(tableList);
-  await Query.ensureTable(this.name);
-  await this.setupRelations(models);
-  await this.ensureIndexes();
-};
-
-Model.applyMixins = function applyMixins() {
-  // Mixin Schema
-  (function mixinSchema(schema, classDef) {
-    if (classDef.schema) {
-      Object.assign(schema, classDef.schema);
-    }
-
-    if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
-      mixinSchema(schema, Object.getPrototypeOf(classDef));
-    }
-  })(this.schema, Object.getPrototypeOf(this));
-
-  // Mixin ReQL
-  this.ModelQuery = class extends Query {};
-
-  RQL_METHODS.forEach(method => {
-    this[method] = function rqlProxy(...args) {
-      const query = new this.ModelQuery(this).table(this.name);
-      return query[method](...args);
-    };
-  });
-
-  (function mixinReQL(Query, baseClass, classDef) {
-    if (classDef.ReQL) {
-      Object.assign(Query.prototype, classDef.ReQL);
-      Object.keys(classDef.ReQL).forEach(method => {
-        baseClass[method] = function rqlProxy(...args) {
-          const query = new this.ModelQuery(this).table(this.name);
-          return query[method](...args);
-        };
-      });
-    }
-
-    if (Object.getPrototypeOf(classDef) !== BASE_PROTO) {
-      mixinReQL(Query, baseClass, Object.getPrototypeOf(classDef));
-    }
-  })(this.ModelQuery, this, this);
-
-  this.run = async function() {
-    return new this.ModelQuery(this).table(this.name).run();
-  };
-};
-
-Model.forEachHasOne = async function forEachHasOne(callback) {
-  if (this.relations && this.relations.hasOne) {
-    for (const [property, definition] of Object.entries(this.relations.hasOne)) {
-      await callback(definition, property);
-    }
-  }
-};
-
-Model.forEachHasMany = async function forEachHasMany(callback) {
-  if (this.relations && this.relations.hasMany) {
-    for (const [property, definition] of Object.entries(this.relations.hasMany)) {
-      await callback(definition, property);
-    }
-  }
-};
-
-Model.setupRelations = async function modelSetupRelations(models) {
-  this.forEachHasOne((definition, property) => {
-    const key = `${property}${capitalize(definition.foreignKey)}`;
-    definition.key = key;
-    definition.constructor = models.get(definition.model);
-
-    if (!has(this.schema, key)) {
-      this.schema[key] = {
-        type: String,
-        allowNull: true,
-        relation: true
-      };
-    }
-  });
-
-  await this.forEachHasMany(async (definition, property) => {
-    const model = models.get(definition.model);
-    let manyToMany;
-
-    model.forEachHasMany((definition, property) => {
-      if (models.get(definition.model) === this) {
-        manyToMany = [definition, property, model];
-      }
-    });
-
-    if (manyToMany) {
-      const [, manyProperty, manyModel] = manyToMany;
-      definition.tableName = [`${this.name}_${property}`, `${manyModel.name}_${manyProperty}`].sort().join('__');
-
-      await Query.ensureTable(definition.tableName);
-
-      definition.manyToMany = true;
-      definition.manyProperty = manyProperty;
-      definition.myKey = `${lcfirst(this.name)}Id`;
-      definition.relationKey = `${lcfirst(manyModel.name)}Id`;
-      definition.modelNames = [this.name, manyModel.name].sort();
-      definition.keys = [definition.myKey, definition.relationKey].sort();
-      definition.constructor = model;
-
-      await Query.ensureIndex(definition.tableName, {
-        properties: [definition.keys[0]]
-      });
-      await Query.ensureIndex(definition.tableName, {
-        properties: [definition.keys[1]]
-      });
-    } else {
-      const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey)}`;
-
-      definition.key = key;
-      definition.constructor = model;
-
-      if (!has(model.schema, key)) {
-        model.schema[key] = {
-          type: String,
-          allowNull: true,
-          relation: true
-        };
-        if (!has(model, 'indexes')) {
-          model.indexes = [];
-        }
-
-        model.indexes.push({ properties: [key] });
-      }
-    }
-  });
-};
-
-Model.ensureIndexes = async function modelEnsureIndexes() {
-  await forEachAsync(this.indexes, async index => Query.ensureIndex(this.name, index));
-};
-
-Model.ensureUniqueLookupTables = async function modelEnsureUniqueLookupTables() {
-  const uniqueProperties = Object.keys(this.schema).reduce((list, key) => {
-    if (this.schema[key].unique) {
-      list.push({ key, type: this.schema[key].type });
-    }
-    return list;
-  }, []);
-  if (uniqueProperties.length === 0) return;
-  uniqueProperties.forEach(async ({ key: property }) => {
-    const tableName = `${this.name}_${property}_unique`;
-    await Query.ensureTable(tableName);
-    this[`is${capitalize(property)}Unique`] = async value =>
-      !await r
-        .table(tableName)
-        .get(value.toLowerCase())
-        .run();
-  });
-};
-
-Model.createUniqueLookups = async function createUniqueLookups(keys, model) {
-  const result = await Promise.all(
-    keys.map(({ key, value: id }) =>
-      r
-        .table(`${model}_${key}_unique`)
-        .insert({ id })
-        .run()
-    )
-  );
-  const errorIndex = result.findIndex(({ errors }) => errors > 0);
-  if (errorIndex > -1) {
-    await Promise.all(
-      result.filter(({ errors }) => errors === 0).map((item, index) =>
-        r
-          .table(`${model}_${result[index].key}_unique`)
-          .get(result[index].value)
-          .delete()
-          .run()
-      )
-    );
-    throw new Error(`'${model}.${keys[errorIndex].key}' must be unique`);
-  }
-  await Promise.all(
-    keys.filter(key => key.oldValue).map(({ key, oldValue: id }) =>
-      r
-        .table(`${model}_${key}_unique`)
-        .get(id)
-        .delete()
-        .run()
-    )
-  );
-};
-
-Model.with = (...args) => args.reduce((superclass, mixin) => mixin(superclass), Model);
-
-module.exports = Model;

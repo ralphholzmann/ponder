@@ -1,6 +1,6 @@
 const NAMESPACE = Symbol('ProtectedMixin');
 
-module.exports = superclass => {
+export default superclass =>
   class PrivateMixin extends superclass {
     setContext(context) {
       this[NAMESPACE] = {
@@ -29,7 +29,4 @@ module.exports = superclass => {
         { id: this.id }
       );
     }
-  }
-
-  return PrivateMixin;
-};
+  };

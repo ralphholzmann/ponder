@@ -1,6 +1,7 @@
 import test from 'ava';
-import { Database, Model } from '../../src';
-import SoftDeleteMixin from '../../src/mixins/Deleted';
+import { Model } from '../../../lib';
+import Database from '../../lib/database';
+import SoftDeleteMixin from '../../../lib/mixins/Deleted';
 
 class Person extends Model.with(SoftDeleteMixin) {
   static schema = {
@@ -8,14 +9,11 @@ class Person extends Model.with(SoftDeleteMixin) {
   };
 }
 
+Database.register(Person);
+
 test.before(async () => {
-  Database.config({
-    db: 'test_db'
-  });
   await Database.connect();
 });
-
-Database.register(Person);
 
 test('Deleting from model instance sets deleted to a new date', async t => {
   const user = new Person({

@@ -1,6 +1,6 @@
 const SOFT_DELETE = Symbol('SoftDelete');
 
-module.exports = superclass => {
+export default superclass =>
   class SoftDelete extends superclass {
     static beforeRun(query) {
       if (query.notes[SOFT_DELETE] && query.notes[SOFT_DELETE].withDeleted) {
@@ -12,29 +12,26 @@ module.exports = superclass => {
       });
     }
 
+    static ReQL = {
+      delete() {
+        return this.update({
+          deleted: new Date()
+        });
+      },
+
+      withDeleted() {
+        this.notes[SOFT_DELETE] = {};
+        this.notes[SOFT_DELETE].withDeleted = true;
+        return this;
+      }
+    };
+
+    static schema = {
+      deleted: Date
+    };
+
     async delete() {
       this.deleted = new Date();
       await this.save();
     }
-  }
-
-  SoftDelete.ReQL = {
-    delete() {
-      return this.update({
-        deleted: new Date()
-      });
-    },
-
-    withDeleted() {
-      this.notes[SOFT_DELETE] = {};
-      this.notes[SOFT_DELETE].withDeleted = true;
-      return this;
-    }
   };
-
-  SoftDelete.schema = {
-    deleted: Date
-  };
-
-  return SoftDelete;
-};

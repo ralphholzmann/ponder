@@ -1,5 +1,5 @@
 import test from 'ava';
-import { get, has } from '../src/util';
+import { get, has } from '../../lib/util';
 
 test('`get` retrieves simple property', t => {
   const obj = {

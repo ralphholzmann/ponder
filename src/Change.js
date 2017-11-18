@@ -1,26 +1,50 @@
-class Change {
-  constructor(Model, change) {
-    const oldValue = change.old_val;
-    const newValue = change.new_val;
+/* @flow */
+/* eslint-disable camelcase */
+import Database from './Database';
+import type Model from './Model';
+import type Namespace from './Namespace';
+import type { Record } from './util';
 
-    this.Model = Model;
-    this.old_val = oldValue === null ? null : new Model(oldValue);
-    this.new_val = newValue === null ? null : new Model(newValue);
+type ChangeRecord = {
+  old_val: Record,
+  new_val: Record
+};
+
+export default class Change {
+  Model: Model;
+  old_val: Record;
+  new_val: Record;
+  namespace: Namespace;
+
+  constructor(ModelConstructor: Function, change: ChangeRecord) {
+    const { old_val, new_val } = change;
+    this.Model = ModelConstructor;
+    this.old_val = old_val === null ? null : new ModelConstructor(old_val);
+    this.new_val = new_val === null ? null : new ModelConstructor(new_val);
+    this.namespace = Database.getNamespace(ModelConstructor);
   }
 
   diff() {
+    const { new_val, old_val } = this;
+
+    if (new_val === null) {
+      return old_val;
+    }
+
+    if (old_val === null) {
+      return new_val;
+    }
+
     const delta = {
-      id: this.new_val.id
+      id: new_val.id
     };
 
-    Object.keys(this.Model.schema).forEach(key => {
-      if (this.old_val[key] !== this.new_val[key]) {
-        delta[key] = this.new_val[key];
+    this.namespace.forEachSchemaProperty(([key: string]) => {
+      if (old_val[key] !== new_val[key]) {
+        delta[key] = new_val[key];
       }
     });
 
     return delta;
   }
 }
-
-module.exports = Change;

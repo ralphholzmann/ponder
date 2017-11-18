@@ -1,15 +1,22 @@
-const r = require('rethinkdb');
+/* @flow */
+import r from 'rethinkdb';
 
-const Point = args => {
-  let x;
-  let y;
+type PointArguments = {
+  type: 'Point',
+  $reql_type$: 'GEOMETRY',
+  coordinates: number[],
+  length: number
+};
+
+export default (args: PointArguments) => {
+  let x: number;
+  let y: number;
   if (Array.isArray(args) && args.length === 2 && !isNaN(args[0]) && !isNaN(args[1])) {
     [x, y] = args;
   } else if (args.type === 'Point' && args.$reql_type$ === 'GEOMETRY') {
-    [x, y] = args.coordinates;
+    const coordinates = args.coordinates;
+    [x, y] = coordinates;
   }
 
   return r.point(x, y);
 };
-
-module.exports = Point;

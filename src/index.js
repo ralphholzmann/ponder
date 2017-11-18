@@ -1,11 +1,10 @@
-const model = require('./Model');
-const query = require('./Query');
-const database = require('./Database');
-const point = require('./Point');
+import Model from './Model';
+import Database from './Database';
+import Point from './Point';
 
-module.exports = {
-  Model: model,
-  Query: query,
-  Database: database,
-  Point: point
-};
+const r = Database.r;
+
+export { Model };
+export { Database };
+export { Point };
+export { r };

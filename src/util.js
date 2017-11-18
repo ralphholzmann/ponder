@@ -1,36 +1,187 @@
-const r = require('rethinkdb');
+/* @flow */
+/* eslint no-use-before-define: 0 */
+import rethinkdb from 'rethinkdb';
+import type Model from './Model';
 
-function getRecursivePrototypeKeys(object, set = new Set()) {
-  const proto = Object.getPrototypeOf(object);
-
-  if (proto) {
-    Object.keys(proto).forEach(method => set.add(method));
-    return getRecursivePrototypeKeys(proto, set);
-  }
-
-  set.delete('run');
-  set.delete('constructor');
-
-  return set;
+interface Indexable {
+  [key: string]: string;
 }
 
-const has = (object, path) => {
-  const [property, ...rest] = path.split('.');
-  const hasProperty = Object.prototype.hasOwnProperty.call(object, path);
-  if (rest.length) {
-    return has(object[property], rest.join('.'));
-  }
+export type Record = {
+  id: string
+} | null;
 
-  return hasProperty;
-};
+const BASE_PROTO = Object.getPrototypeOf(class {});
 
-const get = (object, path) => {
+export const get = (object: Object, path: string): mixed => {
   const [property, ...rest] = path.split('.');
   if (has(object, property) && rest.length) {
     return get(object[property], rest.join('.'));
   }
   return object[property];
 };
+
+export const has = (object: {}, path: string): boolean => {
+  const [property, ...rest] = path.split('.');
+  const hasProperty = Object.prototype.hasOwnProperty.call(object, path);
+  if (rest.length) {
+    return has(object[property], rest.join('.'));
+  }
+  return hasProperty;
+};
+
+export const getInheritedPropertyList = (prototype: Indexable | Model, property: string): Array<any> => {
+  const result = [];
+  const nextPrototype = Object.getPrototypeOf(prototype);
+
+  if (has(prototype, property)) {
+    result.push(prototype[property]);
+  }
+
+  if (nextPrototype !== BASE_PROTO) {
+    result.push(...getInheritedPropertyList(nextPrototype, property));
+  }
+
+  return result;
+};
+
+export const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+export const lcfirst = (str: string) => str.charAt(0).toLowerCase() + str.slice(1);
+
+export const REQL_METHODS: Array<string> = [
+  'add',
+  'and',
+  'append',
+  'args',
+  'avg',
+  'between',
+  'bracket',
+  'branch',
+  'build',
+  'ceil',
+  'changeAt',
+  'changes',
+  'coerceTo',
+  'compose',
+  'concatMap',
+  'config',
+  'contains',
+  'count',
+  'date',
+  'day',
+  'dayOfWeek',
+  'dayOfYear',
+  'default',
+  'delete',
+  'deleteAt',
+  'difference',
+  'distance',
+  'distinct',
+  'div',
+  'do',
+  'downcase',
+  'during',
+  'eq',
+  'eqJoin',
+  'fill',
+  'filter',
+  'floor',
+  'fold',
+  'forEach',
+  'ge',
+  'get',
+  'getAll',
+  'getField',
+  'getIntersecting',
+  'getNearest',
+  'grant',
+  'group',
+  'gt',
+  'hasFields',
+  'hours',
+  'inTimezone',
+  'includes',
+  'indexCreate',
+  'indexDrop',
+  'indexList',
+  'indexRename',
+  'indexStatus',
+  'indexWait',
+  'info',
+  'innerJoin',
+  'insert',
+  'insertAt',
+  'intersects',
+  'isEmpty',
+  'keys',
+  'le',
+  'limit',
+  'lt',
+  'map',
+  'match',
+  'max',
+  'merge',
+  'min',
+  'minutes',
+  'mod',
+  'month',
+  'mul',
+  'ne',
+  'not',
+  'nth',
+  'offsetsOf',
+  'optargs',
+  'or',
+  'orderBy',
+  'outerJoin',
+  'pluck',
+  'polygonSub',
+  'prepend',
+  'rebalance',
+  'reconfigure',
+  'reduce',
+  'replace',
+  'round',
+  'sample',
+  'seconds',
+  'setDifference',
+  'setInsert',
+  'setIntersection',
+  'setUnion',
+  'showRunWarning',
+  'skip',
+  'slice',
+  'spliceAt',
+  'split',
+  'status',
+  'sub',
+  'sum',
+  'sync',
+  'table',
+  'tableCreate',
+  'tableDrop',
+  'tableList',
+  'timeOfDay',
+  'timezone',
+  'toEpochTime',
+  'toGeojson',
+  'toISO8601',
+  'toJSON',
+  'toJsonString',
+  'toString',
+  'typeOf',
+  'ungroup',
+  'union',
+  'upcase',
+  'update',
+  'uuid',
+  'values',
+  'wait',
+  'withFields',
+  'without',
+  'year',
+  'zip'
+];
 
 const DB_TYPE = 'db';
 const TABLE_TYPE = 'table';
@@ -58,7 +209,7 @@ const LINE_TYPE = 'line';
 const POLYGON_TYPE = 'polygon';
 const POINT_TYPE = 'point';
 
-module.exports.transforms = new Map([
+export const transforms: Map<string, Map<string, string>> = new Map([
   [
     R_TYPE,
     new Map([
@@ -360,11 +511,7 @@ module.exports.transforms = new Map([
   [POLYGON_TYPE, new Map([['polygon', POLYGON_TYPE], ['polygonSub', POLYGON_TYPE]])]
 ]);
 
-module.exports.selectRow = property => property.split('.').reduce((row, prop) => row(prop), r.row);
-module.exports.capitalize = str => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-module.exports.lcfirst = str => str.charAt(0).toLowerCase() + str.slice(1);
-module.exports.RQL_METHODS = getRecursivePrototypeKeys(r.db(''));
-module.exports.forEachAsync = async function forEachAsync(collection, iterator) {
+export const forEachAsync = async function forEachAsync(collection: Array<any> | Object, iterator: Function) {
   if (collection) {
     if (Array.isArray(collection)) {
       for (let i = 0; i < collection.length; i += 1) {
@@ -377,10 +524,11 @@ module.exports.forEachAsync = async function forEachAsync(collection, iterator) 
     }
   }
 };
-module.exports.assert = (test, message) => {
+
+export const selectRow = (property: string) => property.split('.').reduce((row, prop) => row(prop), rethinkdb.row);
+
+export const assert = (test: Function, message: string) => {
   if (process.env.NODE_ENV !== 'production' && !test()) {
     throw new Error(message);
   }
 };
-module.exports.get = get;
-module.exports.has = has;
