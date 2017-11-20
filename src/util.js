@@ -193,7 +193,6 @@ const VALUE_TYPE = 'value';
 const R_TYPE = 'r';
 const SELECTION_TYPE = 'selection';
 const SINGLE_SELECTION_TYPE = 'singleSelection';
-const TABLE_SLICE_TYPE = 'tableSlice';
 const STREAM_TYPE = 'stream';
 const SEQUENCE_TYPE = 'sequence';
 const BINARY_TYPE = 'binary';
@@ -294,8 +293,8 @@ export const transforms: Map<string, Map<string, string>> = new Map([
       ['sync', OBJECT_TYPE],
       ['get', SINGLE_SELECTION_TYPE],
       ['getAll', SELECTION_TYPE],
-      ['between', TABLE_SLICE_TYPE],
-      ['orderBy', TABLE_SLICE_TYPE],
+      ['between', SEQUENCE_TYPE],
+      ['orderBy', SEQUENCE_TYPE],
       ['distinct', STREAM_TYPE],
       ['object', OBJECT_TYPE],
       ['getIntersecting', SELECTION_TYPE],
@@ -324,7 +323,8 @@ export const transforms: Map<string, Map<string, string>> = new Map([
       ['orderBy', SELECTION_TYPE],
       ['slice', SELECTION_TYPE],
       ['nth', SELECTION_TYPE],
-      ['map', SELECTION_TYPE]
+      ['map', SELECTION_TYPE],
+      ['pluck', SELECTION_TYPE]
     ])
   ],
   [
@@ -341,7 +341,6 @@ export const transforms: Map<string, Map<string, string>> = new Map([
       ['values', ARRAY_TYPE]
     ])
   ],
-  [TABLE_SLICE_TYPE, new Map([['between', TABLE_SLICE_TYPE]])],
   [
     STREAM_TYPE,
     new Map([

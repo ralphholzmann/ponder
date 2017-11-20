@@ -12,6 +12,7 @@ const { r } = Database;
 export default class Model {
   static namespace: Namespace;
   static databases: Array<Database>;
+  static indexes: Array<Object>;
   static databases = [];
   static name: string;
 
@@ -134,7 +135,7 @@ export default class Model {
           properties: [keys[1]]
         });
       } else {
-        const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey)}`;
+        const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey || 'id')}`;
         const relation = {
           primaryKey: definition.primaryKey,
           property,
@@ -163,7 +164,9 @@ export default class Model {
   }
 
   static async createIndexes(namespace: Namespace) {
-    await namespace.forEachIndexAsync(([name, definition]) => Query.ensureIndex(this.name, { name, ...definition }));
+    await namespace.forEachIndexAsync(([name, definition]) => {
+      return Query.ensureIndex(this.name, definition);
+    });
   }
 
   static async createUniqueLookups(keys, model) {

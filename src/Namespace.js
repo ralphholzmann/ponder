@@ -22,7 +22,7 @@ export default class Namespace {
   hasMany: Array<Relation>;
   manyToMany: Array<Relation>;
   schema: Map<string, Object>;
-  indexes: Map<string, Object>;
+  indexes: Set<Object>;
   beforeSaveHooks: Array<Function>;
   afterSaveHooks: Array<Function>;
 
@@ -37,9 +37,9 @@ export default class Namespace {
     this.hasMany = [];
     this.manyToMany = [];
     this.schema = new Map();
-    this.indexes = new Map();
+    this.indexes = new Set();
     if (model.indexes) {
-      Object.keys(model.indexes).forEach((name: string) => this.indexes.set(name, model.indexes[name]));
+      model.indexes.forEach((index: Object) => this.indexes.add(index));
     }
 
     this.beforeSaveHooks = getInheritedPropertyList(model, 'beforeSave');
@@ -60,7 +60,7 @@ export default class Namespace {
   }
 
   addIndex(name: string, definition: Object) {
-    this.indexes.set(name, definition);
+    this.indexes.add({ name, ...definition });
   }
 
   addHasOne(relation: Relation) {
