@@ -569,4 +569,32 @@ export default class Model {
     this.oldValues = {};
     return this;
   }
+
+  toJSON() {
+    let json = {
+      id: this.id
+    };
+    let namespace = Database.getNamespace(this.constructor);
+
+    namespace.forEachSchemaProperty(([key, value]) => {
+      json[key] = this[key];
+    });
+
+    namespace.forEachHasOne(({ key, property }) => {
+      json[key] = this[key];
+      json[property] = this[property];
+    });
+
+    namespace.forEachHasMany(({ key, property }) => {
+      json[key] = this[key];
+      json[property] = this[property];
+    });
+
+    namespace.forEachManyToMany(({ key, property }) => {
+      json[key] = this[key];
+      json[property] = this[property];
+    });
+
+    return json;
+  }
 }
