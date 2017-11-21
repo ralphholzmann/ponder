@@ -384,3 +384,28 @@ test('throws error when trying to update table with nonunique value', async t =>
   const cronos = await Character.filter({ name: 'Crono' }).run();
   t.is(cronos.length, 1);
 });
+
+test('Only includes schema properties when serializing', async t => {
+  const [character] = await Character.filter({ name: 'Crono' })
+    .populate()
+    .run();
+  const serialized = JSON.parse(JSON.stringify(character));
+  const namespace = Database.getNamespace(Character);
+  const schemaKeys = Object.keys(Character.schema);
+
+  schemaKeys.push('id');
+  namespace.forEachHasOne(({ key, property }) => {
+    schemaKeys.push(key);
+    schemaKeys.push(property);
+  });
+  namespace.forEachHasMany(({ key }) => {
+    schemaKeys.push(key);
+    schemaKeys.push(property);
+  });
+  namespace.forEachManyToMany(({ key }) => {
+    schemaKeys.push(key);
+    schemaKeys.push(property);
+  });
+
+  Object.keys(serialized).forEach(key => t.true(schemaKeys.includes(key)));
+});

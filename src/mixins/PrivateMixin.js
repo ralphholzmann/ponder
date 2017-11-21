@@ -9,9 +9,10 @@ export default superclass =>
     }
 
     toJSON() {
+      const json = super.toJSON();
       const { context } = this[NAMESPACE];
       return Object.keys(this.constructor.schema).reduce(
-        (json, property) => {
+        (response, property) => {
           const config = this.constructor.schema[property];
           if (config.type) {
             if (
@@ -19,14 +20,18 @@ export default superclass =>
               config.private === undefined ||
               (typeof config.private === 'function' && config.private(this, context))
             ) {
-              json[property] = this[property];
+              response[property] = json[property];
+            } else if (config.private === true && Object.prototype.hasOwnProperty.call(response, property)) {
+              delete response[property];
             }
           } else {
-            json[property] = this[property];
+            response[property] = json[property];
           }
-          return json;
+          return response;
         },
-        { id: this.id }
+        {
+          id: this.id
+        }
       );
     }
   };
