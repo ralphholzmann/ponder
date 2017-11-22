@@ -1,6 +1,6 @@
 {
   "name": "ponder",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "ES2017 RethinkDB ORM",
   "main": "lib/index.js",
   "author": "Ralph Holzmann",
@@ -47,11 +47,19 @@
     "url": "https://github.com/GodelSystems/ponder"
   },
   "ava": {
-    "files": ["test/*js"],
-    "source": ["src/*.js"],
+    "files": [
+      "test/*js"
+    ],
+    "source": [
+      "src/*.js"
+    ],
     "babel": {
-      "presets": ["@ava/stage-4"],
-      "plugins": ["transform-class-properties"]
+      "presets": [
+        "@ava/stage-4"
+      ],
+      "plugins": [
+        "transform-class-properties"
+      ]
     }
   }
 }
