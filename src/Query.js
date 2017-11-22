@@ -78,7 +78,8 @@ Query.prototype.populate = function populate(): rethinkdb.Operation {
 
 Query.prototype.populateHasOne = function populateHasOne(query: Query, namespace: Namespace): Query {
   namespace.forEach('hasOne', ({ property, key, foreignKey, model }) => {
-    query = query.map(result =>
+    const method = query.returns.includes('singleSelection') ? 'do' : 'map';
+    query = query[method](result =>
       result.merge({
         [property]: rethinkdb
           .table(model.name)
@@ -96,7 +97,8 @@ Query.prototype.populateHasOne = function populateHasOne(query: Query, namespace
 
 Query.prototype.populateHasMany = function populateHasMany(query: Query, namespace: Namespace): Query {
   namespace.forEach('hasMany', ({ property, key, model }) => {
-    query = query.map(result =>
+    const method = query.returns.includes('singleSelection') ? 'do' : 'map';
+    query = query[method](result =>
       result.merge({
         [property]: rethinkdb
           .table(model.name)
@@ -113,7 +115,8 @@ Query.prototype.populateHasMany = function populateHasMany(query: Query, namespa
 
 Query.prototype.populateManyToMany = function populateManyToMany(query: Query, namespace: Namespace): Query {
   namespace.forEach('manyToMany', ({ property, key, primaryKey, model, table, foreignKey }) => {
-    query = query.map(function(result) {
+    const method = query.returns.includes('singleSelection') ? 'do' : 'map';
+    query = query[method](function(result) {
       return result.merge({
         [property]: rethinkdb
           .table(table)
