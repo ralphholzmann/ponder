@@ -333,6 +333,7 @@ export const transforms: Map<string, Map<string, string>> = new Map([
       ['update', OBJECT_TYPE],
       ['replace', OBJECT_TYPE],
       ['delete', OBJECT_TYPE],
+      ['do', OBJECT_TYPE],
       ['pluck', OBJECT_TYPE],
       ['without', OBJECT_TYPE],
       ['merge', OBJECT_TYPE],
@@ -439,6 +440,7 @@ export const transforms: Map<string, Map<string, string>> = new Map([
     new Map([
       ['count', NUMBER_TYPE],
       ['pluck', OBJECT_TYPE],
+      ['do', OBJECT_TYPE],
       ['without', OBJECT_TYPE],
       ['merge', OBJECT_TYPE],
       ['getField', VALUE_TYPE],
