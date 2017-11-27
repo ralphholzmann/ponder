@@ -2,7 +2,7 @@
 import Database from './Database';
 import Query from './Query';
 import Point from './Point';
-import { get, has, forEachAsync, getInheritedPropertyList, capitalize, lcfirst, REQL_METHODS } from './util';
+import { get, has, forEachAsync, getInheritedPropertyList, capitalize, lcfirst, REQL_METHODS, assert } from './util';
 
 import type Namespace from './Namespace';
 import type { Record } from './util';
@@ -15,6 +15,8 @@ export default class Model {
   static indexes: Array<Object>;
   static databases = [];
   static name: string;
+
+  id: string;
 
   static async getForEachAsync(property: string, iterator: Function): Promise<void> {
     return forEachAsync(get(this, property), iterator);
@@ -568,6 +570,21 @@ export default class Model {
     this.pendingUpdate = {};
     this.oldValues = {};
     return this;
+  }
+
+  isNew() {
+    return this.id === undefined;
+  }
+
+  async populate() {
+    assert(() => !this.isNew(), "`populate` cannot be called on an instance that hasn't been saved yet");
+    const namespace = Database.getNamespace(this.constructor);
+    const plucked = await this.constructor
+      .get(this.id)
+      .populate()
+      .pluck(...namespace.getRelationProperties())
+      .run();
+    this.assign(plucked);
   }
 
   toJSON() {

@@ -25,6 +25,7 @@ export default class Namespace {
   indexes: Set<Object>;
   beforeSaveHooks: Array<Function>;
   afterSaveHooks: Array<Function>;
+  relationProperties: Array<string>;
 
   static forEachAsync(array: Array<any>, iterator: Function) {
     return array.reduce((chain, definition): Promise<any> => chain.then(() => iterator(definition)), Promise.resolve());
@@ -36,6 +37,7 @@ export default class Namespace {
     this.hasOne = [];
     this.hasMany = [];
     this.manyToMany = [];
+    this.relationProperties = [];
     this.schema = new Map();
     this.indexes = new Set();
     if (model.indexes) {
@@ -65,6 +67,7 @@ export default class Namespace {
 
   addHasOne(relation: Relation) {
     this.hasOne.push(relation);
+    this.relationProperties.push(relation.property);
   }
 
   forEachSchemaProperty(iterator: Function) {
@@ -112,13 +115,19 @@ export default class Namespace {
 
   addHasMany(relation: Relation) {
     this.hasMany.push(relation);
+    this.relationProperties.push(relation.property);
   }
 
   addManyToMany(relation: Relation) {
     this.manyToMany.push(relation);
+    this.relationProperties.push(relation.property);
   }
 
   filterSchema(option: string) {
     return Array.from(this.schema.values()).filter((property: Object) => Boolean(property[option]));
+  }
+
+  getRelationProperties() {
+    return this.relationProperties;
   }
 }

@@ -269,19 +269,30 @@ test('populate on single record', async t => {
   const [{ id }] = await Character.filter({
     name: 'Crono'
   }).run();
-  try {
-    const character = await Character.get(id)
-      .populate()
-      .run();
+  const character = await Character.get(id)
+    .populate()
+    .run();
 
-    t.true(character.equippedWeapon instanceof Weapon);
-    t.is(character.equippedWeaponId, character.equippedWeapon.id);
+  t.true(character.equippedWeapon instanceof Weapon);
+  t.is(character.equippedWeaponId, character.equippedWeapon.id);
 
-    t.true(character.equippedArmor instanceof Armor);
-    t.is(character.equippedArmorId, character.equippedArmor.id);
-  } catch (error) {
-    console.log(error);
-  }
+  t.true(character.equippedArmor instanceof Armor);
+  t.is(character.equippedArmorId, character.equippedArmor.id);
+});
+
+test('populate on an instance', async t => {
+  const [{ id }] = await Character.filter({
+    name: 'Crono'
+  }).run();
+  const character = await Character.get(id).run();
+
+  await character.populate();
+
+  t.true(character.equippedWeapon instanceof Weapon);
+  t.is(character.equippedWeaponId, character.equippedWeapon.id);
+
+  t.true(character.equippedArmor instanceof Armor);
+  t.is(character.equippedArmorId, character.equippedArmor.id);
 });
 
 test('hasMany relations save correctly', async t => {
