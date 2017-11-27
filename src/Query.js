@@ -252,9 +252,7 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
       } else {
         assert(
           () => !!name,
-          `Index name missing for nested property ${properties[0]} on ${
-            tableName
-          } model. Please add a name to this index definition.`
+          `Index name missing for nested property ${properties[0]} on ${tableName} model. Please add a name to this index definition.`
         );
         args.push(name, selectRow(properties[0]), options);
       }
@@ -262,9 +260,9 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
     } else {
       assert(
         () => !!name,
-        `Index name missing for compound index on properties ${JSON.stringify(properties)} on ${
-          tableName
-        } model. Please add a name to this index definition.`
+        `Index name missing for compound index on properties ${JSON.stringify(
+          properties
+        )} on ${tableName} model. Please add a name to this index definition.`
       );
       args.push(name, properties.map(selectRow), options);
     }
