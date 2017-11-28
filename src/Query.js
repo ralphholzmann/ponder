@@ -259,6 +259,7 @@ const INVALID_FILTER_METHODS = [
   'reconfigure',
   'status',
   'wait',
+  'get',
   'tableCreate'
 ];
 

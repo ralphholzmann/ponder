@@ -61,7 +61,7 @@ export default class Database {
     const databases = await this.execute(r.dbList());
     if (isTesting && databases.indexOf(this.db) !== -1) {
       try {
-        await this.execute(r.dbDrop(this.db));
+        //await this.execute(r.dbDrop(this.db));
       } catch (error) {
         throw new Error(error);
       }
