@@ -111,6 +111,18 @@ test('Can create complex relations before IDs exist', async t => {
   t.is(exchange.countryId, country.id);
 });
 
+test('Can load complex relations', async t => {
+  const [asset] = await Asset.filter({
+    name: 'Apple Inc.'
+  })
+    .populate()
+    .run();
+
+  t.truthy(asset.quotes[0]);
+  t.truthy(asset.quotes[0].exchange);
+  t.truthy(asset.quotes[0].exchange.country);
+});
+
 class A extends Model {
   static schema = {
     name: String
@@ -211,7 +223,7 @@ Database.register(C);
 Database.register(D);
 Database.register(E);
 
-test('Can handle 3 way circular dependencies', async t => {
+test('Can handle saving 3 way circular dependencies', async t => {
   const c = new C({
     name: 'model c'
   });
@@ -233,6 +245,16 @@ test('Can handle 3 way circular dependencies', async t => {
   t.is(c.dId, d.id);
   t.is(d.eId, e.id);
   t.is(e.cId, c.id);
+});
+
+test('Can handle loading 3 way circular dependencies', async t => {
+  const [c] = await C.filter({
+    name: 'model c'
+  })
+    .populate()
+    .run();
+
+  t.truthy(c.d.e);
 });
 
 class Post extends Model {
