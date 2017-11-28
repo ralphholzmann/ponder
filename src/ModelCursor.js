@@ -1,19 +1,33 @@
 /* @flow */
 import rethinkdb from 'rethinkdb';
+import { EventEmitter } from 'events';
 import Change from './Change';
 import type Model from './Model';
 
-export default class ModelCursor {
+export default class ModelCursor extends EventEmitter {
   Model: Model;
   cursor: rethinkdb.Cursor;
 
   constructor(model: Model, cursor: rethinkdb.Cursor) {
+    super();
     this.Model = model;
     this.cursor = cursor;
+    this.bindEachToEmitter();
+  }
+
+  bindEachToEmitter() {
+    this.cursor.each((err, change) => {
+      if (err) {
+        this.emit('error', err);
+      } else {
+        this.emit('change', new Change(this.Model, change));
+      }
+    });
   }
 
   each(callback: Function): void {
-    this.cursor.each(this.onChange.bind(this, callback));
+    this.on('error', callback);
+    this.on('change', change => callback(null, change));
   }
 
   onChange(callback: Function, error: rethinkdb.ReqlError, change: Object): void {
