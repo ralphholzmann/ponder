@@ -6,6 +6,7 @@ import { transforms, getInheritedPropertyList, REQL_METHODS, selectRow, assert }
 import Database from './Database';
 import type Model from './Model';
 import type Namespace from './Namespace';
+import { Set } from 'immutable';
 
 const { hasOwnProperty } = Object.prototype;
 
@@ -30,7 +31,7 @@ Query.prototype.toQuery = function toQuery() {
   return this.stack.reduce((query, partial) => partial(query), rethinkdb);
 };
 
-Query.prototype.run = async function run() {
+Query.prototype.run = async function run(options = {}) {
   let query = this;
   if (this.model) {
     const beforeRunHooks = getInheritedPropertyList(this.model, 'beforeRun');
@@ -39,6 +40,9 @@ Query.prototype.run = async function run() {
 
   const connection = await Database.getConnection();
   const rethinkQuery = query.toQuery();
+  if (options.log) {
+    console.log(rethinkQuery.toString());
+  }
   const response = await rethinkQuery.run(connection);
   return this.processResponse(response);
 };
@@ -66,59 +70,111 @@ Query.prototype.processResponse = async function processResponse(response: rethi
 };
 
 Query.prototype.populate = function populate(): rethinkdb.Operation {
-  const namespace = Database.getNamespace(this.model);
   let query = this;
+  const method = query.returns.includes('singleSelection') ? 'do' : 'map';
+  const namespace = Database.getNamespace(this.model);
+  const populated = new Set([this.model]);
 
-  query = this.populateHasOne(query, namespace);
-  query = this.populateHasMany(query, namespace);
-  query = this.populateManyToMany(query, namespace);
+  query = this.populateHasOne(query, namespace, populated, method);
+  query = this.populateHasMany(query, namespace, populated, method);
+  query = this.populateManyToMany(query, namespace, populated, method);
 
   return query;
 };
 
-Query.prototype.populateHasOne = function populateHasOne(query: Query, namespace: Namespace): Query {
+Query.prototype.populateHasOne = function populateHasOne(
+  query: Query,
+  namespace: Namespace,
+  populated: Set<Model>,
+  method: string = 'map'
+): Query {
   namespace.forEach('hasOne', ({ property, key, foreignKey, model }) => {
-    const method = query.returns.includes('singleSelection') ? 'do' : 'map';
-    query = query[method](result =>
-      result.merge({
-        [property]: rethinkdb
-          .table(model.name)
-          .getAll(result.getField(key), {
-            index: foreignKey
-          })
-          .nth(0)
-          .default(null)
-      })
-    );
+    query = query[method](result => {
+      return rethinkdb.branch(
+        result.ne(null),
+        result.merge(function() {
+          let subQuery = rethinkdb
+            .table(model.name)
+            .getAll(result.getField(key), {
+              index: foreignKey
+            })
+            .nth(0)
+            .default(null);
+
+          if (!populated.has(model)) {
+            subQuery = Query.prototype.populateHasOne(
+              subQuery,
+              Database.getNamespace(model),
+              populated.add(model),
+              'do'
+            );
+            subQuery = Query.prototype.populateHasMany(
+              subQuery,
+              Database.getNamespace(model),
+              populated.add(model),
+              'do'
+            );
+            subQuery = Query.prototype.populateManyToMany(
+              subQuery,
+              Database.getNamespace(model),
+              populated.add(model),
+              'do'
+            );
+          }
+          return {
+            [property]: subQuery
+          };
+        }),
+        rethinkdb.expr(null)
+      );
+    });
   });
 
   return query;
 };
 
-Query.prototype.populateHasMany = function populateHasMany(query: Query, namespace: Namespace): Query {
+Query.prototype.populateHasMany = function populateHasMany(
+  query: Query,
+  namespace: Namespace,
+  populated: Set<Model>,
+  method: string = 'map'
+): Query {
   namespace.forEach('hasMany', ({ property, key, model }) => {
-    const method = query.returns.includes('singleSelection') ? 'do' : 'map';
-    query = query[method](result =>
-      result.merge({
-        [property]: rethinkdb
+    query = query[method](result => {
+      return result.merge(function() {
+        let subQuery = rethinkdb
           .table(model.name)
           .getAll(result.getField('id'), {
             index: key
           })
-          .coerceTo('array')
-      })
-    );
+          .coerceTo('array');
+
+        if (!populated.has(model)) {
+          subQuery = Query.prototype.populateHasOne(subQuery, Database.getNamespace(model), populated.add(model));
+          subQuery = Query.prototype.populateHasMany(subQuery, Database.getNamespace(model), populated.add(model));
+          subQuery = Query.prototype.populateManyToMany(subQuery, Database.getNamespace(model), populated.add(model));
+        }
+
+        return {
+          [property]: subQuery
+        };
+      });
+    });
   });
 
   return query;
 };
 
-Query.prototype.populateManyToMany = function populateManyToMany(query: Query, namespace: Namespace): Query {
+Query.prototype.populateManyToMany = function populateManyToMany(
+  query: Query,
+  namespace: Namespace,
+  populated: Set<Model>,
+  method: string = 'map'
+): Query {
   namespace.forEach('manyToMany', ({ property, key, primaryKey, model, table, foreignKey }) => {
-    const method = query.returns.includes('singleSelection') ? 'do' : 'map';
-    query = query[method](function(result) {
-      return result.merge({
-        [property]: rethinkdb
+    query = query[method](result => {
+      return result.merge(function() {
+        let subQuery = rethinkdb
           .table(table)
           .getAll(result.getField('id'), {
             index: key
@@ -126,7 +182,17 @@ Query.prototype.populateManyToMany = function populateManyToMany(query: Query, n
           .coerceTo('array')
           .map(function(result) {
             return rethinkdb.table(model.name).get(result.getField(foreignKey));
-          })
+          });
+
+        if (!populated.has(model)) {
+          subQuery = Query.prototype.populateHasOne(subQuery, Database.getNamespace(model), populated.add(model));
+          subQuery = Query.prototype.populateHasMany(subQuery, Database.getNamespace(model), populated.add(model));
+          subQuery = Query.prototype.populateManyToMany(subQuery, Database.getNamespace(model), populated.add(model));
+        }
+
+        return {
+          [property]: subQuery
+        };
       });
     });
   });
@@ -252,7 +318,9 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
       } else {
         assert(
           () => !!name,
-          `Index name missing for nested property ${properties[0]} on ${tableName} model. Please add a name to this index definition.`
+          `Index name missing for nested property ${properties[0]} on ${
+            tableName
+          } model. Please add a name to this index definition.`
         );
         args.push(name, selectRow(properties[0]), options);
       }
@@ -260,9 +328,9 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
     } else {
       assert(
         () => !!name,
-        `Index name missing for compound index on properties ${JSON.stringify(
-          properties
-        )} on ${tableName} model. Please add a name to this index definition.`
+        `Index name missing for compound index on properties ${JSON.stringify(properties)} on ${
+          tableName
+        } model. Please add a name to this index definition.`
       );
       args.push(name, properties.map(selectRow), options);
     }
