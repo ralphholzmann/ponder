@@ -20,7 +20,7 @@ export default class ModelCursor {
     if (error) {
       callback(error);
     } else {
-      callback(new Change(this.Model, change));
+      callback(null, new Change(this.Model, change));
     }
   }
 

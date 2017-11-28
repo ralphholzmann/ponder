@@ -19,8 +19,8 @@ export default class Change {
   constructor(ModelConstructor: Function, change: ChangeRecord) {
     const { old_val, new_val } = change;
     this.Model = ModelConstructor;
-    this.old_val = old_val === null ? null : new ModelConstructor(old_val);
-    this.new_val = new_val === null ? null : new ModelConstructor(new_val);
+    this.old_val = old_val ? new ModelConstructor(old_val) : null;
+    this.new_val = new_val ? new ModelConstructor(new_val) : null;
     this.namespace = Database.getNamespace(ModelConstructor);
   }
 
