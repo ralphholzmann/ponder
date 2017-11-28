@@ -1,6 +1,6 @@
 {
   "name": "ponder",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "description": "ES2017 RethinkDB ORM",
   "main": "lib/index.js",
   "author": "Ralph Holzmann",
