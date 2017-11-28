@@ -19,6 +19,8 @@ export default class ModelCursor extends EventEmitter {
     this.cursor.each((err, change) => {
       if (err) {
         this.emit('error', err);
+      } else if (change.state) {
+        this.emit('state', change.state);
       } else {
         this.emit('change', new Change(this.Model, change));
       }
