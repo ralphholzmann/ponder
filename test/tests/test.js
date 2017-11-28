@@ -184,7 +184,7 @@ test('multi indexes are created successfully', async t => {
 test('Changefeeds return instances of models', async t => {
   const cursor = await Character.changes().run();
   await new Promise(resolve => {
-    cursor.each(change => {
+    cursor.each((err, change) => {
       t.true(change.new_val instanceof Character);
       resolve();
     });
@@ -213,7 +213,7 @@ test('Changefeeds `diff` correctly', async t => {
       friends: []
     });
 
-    cursor.each(change => {
+    cursor.each((err, change) => {
       if (count === 1) {
         const diff = change.diff();
         t.is(user.id, diff.id);
