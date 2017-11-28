@@ -365,7 +365,9 @@ export default class Model {
         return;
       }
 
-      if (value !== null || value !== undefined) {
+      if (type === Date) {
+        this[key] = value;
+      } else if (value !== null || value !== undefined) {
         this[key] = type(value);
       }
     });

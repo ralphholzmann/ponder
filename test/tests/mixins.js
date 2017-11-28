@@ -20,3 +20,16 @@ test('Mixin augments schema correctly', async t => {
   const namespace = Database.getNamespace(Message);
   [('text', 'created', 'updated', 'deleted')].forEach(prop => t.truthy(namespace.schema.get(prop)));
 });
+
+test('Mixin dates are serialized correctly', async t => {
+  const message = new Message({
+    text: 'Hello world!'
+  });
+
+  await message.save();
+  t.true(message.created instanceof Date);
+
+  const copy = await Message.get(message.id).run();
+
+  t.true(copy.created instanceof Date);
+});
