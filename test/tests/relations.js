@@ -123,6 +123,22 @@ test('Can load complex relations', async t => {
   t.truthy(asset.quotes[0].exchange.country);
 });
 
+test('Can define which relations get loaded', async t => {
+  const [asset] = await Asset.filter({
+    name: 'Apple Inc.'
+  })
+    .populate({
+      quotes: {
+        exchange: true
+      }
+    })
+    .run();
+
+  t.truthy(asset.quotes[0]);
+  t.truthy(asset.quotes[0].exchange);
+  t.falsy(asset.quotes[0].exchange.country);
+});
+
 class A extends Model {
   static schema = {
     name: String
