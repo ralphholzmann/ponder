@@ -319,6 +319,7 @@ export const transforms: Map<string, Map<string, string>> = new Map([
       ['replace', OBJECT_TYPE],
       ['delete', OBJECT_TYPE],
       ['filter', SELECTION_TYPE],
+      ['distinct', SELECTION_TYPE],
       ['count', NUMBER_TYPE],
       ['orderBy', SELECTION_TYPE],
       ['slice', SELECTION_TYPE],

@@ -33,6 +33,10 @@ Query.prototype.toQuery = function toQuery() {
 
 Query.prototype.run = async function run(options = {}) {
   let query = this;
+  if (options.log) {
+    console.log(this.methods);
+    console.log(this.returns);
+  }
   if (this.model) {
     const beforeRunHooks = getInheritedPropertyList(this.model, 'beforeRun');
     query = await beforeRunHooks.reduce(async (partialQuery: Query, hook: Query => Query) => hook(partialQuery), query);
@@ -40,6 +44,9 @@ Query.prototype.run = async function run(options = {}) {
 
   const connection = await Database.getConnection();
   const rethinkQuery = query.toQuery();
+  if (options.log) {
+    console.log(rethinkQuery.toString());
+  }
   const response = await rethinkQuery.run(connection);
   return this.processResponse(response);
 };
@@ -272,7 +279,7 @@ REQL_METHODS.forEach((method: string): void => {
       const nextReturnType = transforms.get(previousReturnType).get(method);
       newReturns.push(nextReturnType);
     } catch (error) {
-      console.log(error);
+      /* Tumbleweed */
     }
 
     return new this.constructor({
