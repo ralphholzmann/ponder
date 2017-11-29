@@ -606,6 +606,7 @@ export default class Model {
 
       const relationIds = this[property].map(instance => instance.id);
       // TODO(ralph): Make this smarter, only remove the relations that are actually removed instead of nuking and rewriting
+      /** /
       await r
         .table(table)
         .getAll(this.id, {
@@ -613,6 +614,7 @@ export default class Model {
         })
         .delete()
         .run();
+      /**/
 
       await Promise.all(
         relationIds.map(async relationId => {
