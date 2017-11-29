@@ -403,6 +403,10 @@ export default class Model {
       options
     );
 
+    if (options.STACK.has(this)) {
+      return this;
+    }
+
     // beforeSave hooks
     await namespace.beforeSaveHooks.reduce(async (chain, hook) => chain.then(() => hook(model)), Promise.resolve());
 
@@ -431,7 +435,7 @@ export default class Model {
           // Circular reference
           options.PENDING.push(async () => {
             this[key] = this[property][foreignKey];
-            await this.update();
+            await this.save();
           });
         } else {
           await this[property].save(
@@ -467,7 +471,11 @@ export default class Model {
       await Promise.all(
         this[property].map(instance => {
           instance[key] = this[primaryKey];
-          return instance.save(options);
+          return instance.save(
+            Object.assign({}, options, {
+              ROOT: false
+            })
+          );
         })
       );
     });
@@ -476,7 +484,11 @@ export default class Model {
       await Promise.all(
         this[property].map(instance => {
           instance[key] = this[primaryKey];
-          return instance.save(options);
+          return instance.save(
+            Object.assign({}, options, {
+              ROOT: false
+            })
+          );
         })
       );
 
@@ -516,58 +528,122 @@ export default class Model {
 
   async update(options) {
     const namespace = Database.getNamespace(this.constructor);
-    const { schema, name } = this.constructor;
-    const unique = Object.keys(schema).reduce((reduction, key) => {
-      if (schema[key].unique && this.pendingUpdate[key]) {
-        reduction.push({
+    const payload = {};
+    const unique = [];
+
+    options.STACK.add(this);
+
+    await namespace.forEachHasOneAsync(async ({ property, key, foreignKey, model }) => {
+      if (this[property] instanceof model) {
+        if (options.STACK.has(this[property])) {
+          // Circular reference
+          options.PENDING.push(async () => {
+            this[key] = this[property][foreignKey];
+            await this.save(
+              Object.assign({}, options, {
+                ROOT: false
+              })
+            );
+          });
+        } else {
+          await this[property].save(
+            Object.assign({}, options, {
+              ROOT: false
+            })
+          );
+          if (typeof this[property][foreignKey] !== 'undefined') {
+            this[key] = this[property][foreignKey];
+          }
+        }
+      }
+    });
+
+    await namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
+      payload[key] = this[key];
+      if (definition.unique && this.pendingUpdate[key]) {
+        unique.push({
           key,
-          value: schema[key].type === String ? this.pendingUpdate[key].toLowerCase() : this.pendingUpdate[key],
-          oldValue: schema[key].type === String ? this.oldValues[key].toLowerCase() : this.oldValues[key]
+          value: definition.type === String ? this[key].toLowerCase() : this[key],
+          oldValue: definition.type === String ? this.oldValues[key].toLowerCase() : this.oldValues[key]
         });
       }
-      return reduction;
-    }, []);
+    });
 
     if (unique.length > 0) {
-      await this.constructor.createUniqueLookups(unique, name);
+      await this.constructor.createUniqueLookups(unique, this.constructor.name);
     }
 
     await r
-      .table(name)
+      .table(this.constructor.name)
       .get(this.id)
       .update(this.pendingUpdate)
       .run();
 
-    await namespace.forEachHasMany(
-      async ({ key, primaryKey, manyToMany, tableName, keys, myKey, relationKey, modelNames }, property) => {
-        if (manyToMany) {
-          // TODO(ralph): Make this smarter, only remove the relations that are actually removed instead of nuking and rewriting
-          await r
-            .table(tableName)
-            .getAll(this.id, {
-              index: myKey
-            })
-            .delete()
-            .run();
-          const relationIds = this[property].map(instance => instance.id);
-          await Promise.all(
-            relationIds.map(async relationId => {
-              const id = (this.constructor.name === modelNames[0] ? [this.id, relationId] : [relationId, this.id]).join(
-                '_'
-              );
-              await r
-                .table(tableName)
-                .insert({
-                  id,
-                  [myKey]: this.id,
-                  [relationKey]: relationId
-                })
-                .run();
+    await namespace.forEachHasManyAsync(async ({ property, key, primaryKey }) => {
+      await Promise.all(
+        this[property].map(instance => {
+          instance[key] = this[primaryKey];
+          return instance.save(
+            Object.assign({}, options, {
+              ROOT: false
             })
           );
-        }
-      }
-    );
+        })
+      );
+    });
+
+    await namespace.forEachManyToManyAsync(async ({ property, key, table, primaryKey, modelNames, keys }) => {
+      await Promise.all(
+        this[property].map(instance => {
+          instance[key] = this[primaryKey];
+          return instance.save(
+            Object.assign({}, options, {
+              ROOT: false
+            })
+          );
+        })
+      );
+
+      const relationIds = this[property].map(instance => instance.id);
+      // TODO(ralph): Make this smarter, only remove the relations that are actually removed instead of nuking and rewriting
+      await r
+        .table(table)
+        .getAll(this.id, {
+          index: myKey
+        })
+        .delete()
+        .run();
+
+      await Promise.all(
+        relationIds.map(async relationId => {
+          const [key1, key2] = keys;
+          let ids;
+
+          if (this.constructor.name === modelNames[0]) {
+            ids = [this.id, relationId];
+          } else {
+            ids = [relationId, this.id];
+          }
+          const [value1, value2] = ids;
+
+          await r
+            .table(table)
+            .insert({
+              id: ids.join('_'),
+              [key1]: value1,
+              [key2]: value2
+            })
+            .run();
+        })
+      );
+    });
+
+    options.STACK.delete(this);
+
+    // Fix up circular references
+    if (options.ROOT && options.PENDING) {
+      options.PENDING.forEach(update => update());
+    }
 
     this.pendingUpdate = {};
     this.oldValues = {};
