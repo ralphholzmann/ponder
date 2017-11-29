@@ -16,8 +16,7 @@
   "dependencies": {
     "babel-preset-env": "^1.6.1",
     "debug": "^3.1.0",
-    "immutable": "^3.8.2",
-    "rethinkdb": "^2.3.3"
+    "immutable": "^3.8.2"
   },
   "devDependencies": {
     "ava": "^0.22.0",
@@ -38,6 +37,9 @@
     "eslint-plugin-react": "^7.0.1",
     "flow-bin": "^0.57.3",
     "prettier": "^1.7.4"
+  },
+  "peerDependencies": {
+    "rethinkdb": "^2.3.3"
   },
   "optionalDependencies": {
     "thinky": "^2.3.8"
