@@ -4,7 +4,8 @@ import Point from './Point';
 import PrivateMixin from './mixins/PrivateMixin';
 import SoftDeleteMixin from './mixins/Deleted';
 import TimestampMixin from './mixins/Timestamp';
+import UniquePropertyMixin from './mixins/UniquePropertyMixin';
 
 const r = Database.r;
 
-export { Database, Model, Point, r, PrivateMixin, SoftDeleteMixin, TimestampMixin };
+export { Database, Model, Point, r, PrivateMixin, SoftDeleteMixin, TimestampMixin, UniquePropertyMixin };

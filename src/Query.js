@@ -325,9 +325,7 @@ Query.prototype.tapFilterRight = function tapFilterRight(args) {
   const newStack = this.stack.slice(0);
   const newMethods = this.methods.slice(0);
   const newReturns = this.returns.slice(0);
-  newStack.splice(methodIndex, 0, function(query) {
-    return query.filter(args);
-  });
+  newStack.splice(methodIndex, 0, query => query.filter(args));
   newMethods.splice(methodIndex, 0, 'filter');
   newReturns.splice(methodIndex + 1, 0, transforms.get(this.returns[methodIndex]).get('filter'));
 
