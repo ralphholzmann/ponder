@@ -609,7 +609,7 @@ export default class Model {
       await r
         .table(table)
         .getAll(this.id, {
-          index: myKey
+          index: key
         })
         .delete()
         .run();
