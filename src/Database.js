@@ -68,7 +68,7 @@ export default class Database {
     }
     await this.ensureDatabase();
     await Array.from(this.models.values()).reduce(async (chain, model: Class<Model>) => {
-      return chain.then(() => model.setup(this.namespaces.get(model), this.models));
+      return chain.then(() => model.initialize(this.namespaces.get(model), this.models));
     }, Promise.resolve());
   }
 

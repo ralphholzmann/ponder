@@ -22,18 +22,22 @@ export default class Model {
     return forEachAsync(get(this, property), iterator);
   }
 
-  static async setup(namespace: Namespace, models: Map<string, Class<Model>>): Promise<void> {
-    this.applyMixins(namespace);
-    await this.ensureUniqueLookupTables(namespace);
+  static async initialize(namespace: Namespace, models: Map<string, Class<Model>>): Promise<void> {
+    await this.applyMixins(namespace);
     await Query.ensureTable(this.name);
     await this.setupRelations(namespace, models);
     await this.createIndexes(namespace);
   }
 
-  static applyMixins(namespace: Namespace): void {
+  static async applyMixins(namespace: Namespace): void {
     const schemas = getInheritedPropertyList(this, 'schema');
+    const setups = getInheritedPropertyList(this, 'setup');
+
     const finalSchema = Object.assign({}, ...schemas);
     Object.keys(finalSchema).forEach((key: string) => namespace.addSchemaProperty(key, finalSchema[key]));
+
+    await setups.reduce((chain, fn) => chain.then(() => fn.call(this, namespace)), Promise.resolve());
+
     const CustomReQLList = getInheritedPropertyList(this, 'ReQL');
     const CustomReQL = {};
     if (CustomReQLList.length) {
@@ -58,22 +62,6 @@ export default class Model {
     });
 
     this.run = () => new ModelQuery(this).table(this.name).run();
-  }
-
-  static async ensureUniqueLookupTables(namespace: Namespace): Promise<void> {
-    const uniqueProperties = namespace.filterSchema('unique');
-
-    if (uniqueProperties.length === 0) return;
-
-    uniqueProperties.forEach(async ({ property }) => {
-      const tableName = `${this.name}_${property}_unique`;
-      await Query.ensureTable(tableName);
-      this[`is${capitalize(property)}Unique`] = async value =>
-        !await r
-          .table(tableName)
-          .get(value.toLowerCase())
-          .run();
-    });
   }
 
   static with(...args) {
@@ -169,39 +157,6 @@ export default class Model {
     await namespace.forEachIndexAsync(([name, definition]) => {
       return Query.ensureIndex(this.name, definition);
     });
-  }
-
-  static async createUniqueLookups(keys, model) {
-    const result = await Promise.all(
-      keys.map(({ key, value: id }) =>
-        r
-          .table(`${model}_${key}_unique`)
-          .insert({ id })
-          .run()
-      )
-    );
-    const errorIndex = result.findIndex(({ errors }) => errors > 0);
-    if (errorIndex > -1) {
-      await Promise.all(
-        result.filter(({ errors }) => errors === 0).map((item, index) =>
-          r
-            .table(`${model}_${result[index].key}_unique`)
-            .get(result[index].value)
-            .delete()
-            .run()
-        )
-      );
-      throw new Error(`'${model}.${keys[errorIndex].key}' must be unique`);
-    }
-    await Promise.all(
-      keys.filter(key => key.oldValue).map(({ key, oldValue: id }) =>
-        r
-          .table(`${model}_${key}_unique`)
-          .get(id)
-          .delete()
-          .run()
-      )
-    );
   }
 
   constructor(properties: Record) {
@@ -391,45 +346,8 @@ export default class Model {
     });
   }
 
-  async save(options = {}) {
-    const namespace = Database.getNamespace(this.constructor);
-    const model = this;
-    options = Object.assign(
-      {
-        STACK: new Set(),
-        PENDING: [],
-        ROOT: true
-      },
-      options
-    );
-
-    if (options.STACK.has(this)) {
-      return this;
-    }
-
-    // beforeSave hooks
-    await namespace.beforeSaveHooks.reduce(async (chain, hook) => chain.then(() => hook(model)), Promise.resolve());
-
-    if (has(this, 'id')) {
-      await this.update(options);
-    } else {
-      await this.insert(options);
-    }
-
-    // afterSave hooks
-    await namespace.afterSaveHooks.reduce(async (chain, hook) => chain.then(() => hook(model)), Promise.resolve());
-
-    return this;
-  }
-
-  async insert(options) {
-    const namespace = Database.getNamespace(this.constructor);
-    const payload = {};
-    const unique = [];
-
-    options.STACK.add(this);
-
-    await namespace.forEachHasOneAsync(async ({ property, key, foreignKey, model }) => {
+  async saveHasOneRelations(namespace, options) {
+    return namespace.forEachHasOneAsync(async ({ property, key, foreignKey, model }) => {
       if (this[property] instanceof model) {
         if (options.STACK.has(this[property])) {
           // Circular reference
@@ -449,203 +367,135 @@ export default class Model {
         }
       }
     });
+  }
+
+  async saveHasManyRelations(namespace, options) {
+    return namespace.forEachHasManyAsync(async ({ property, key, primaryKey }) => {
+      await Promise.all(
+        this[property].map(instance => {
+          instance[key] = this[primaryKey];
+          return instance.save(
+            Object.assign({}, options, {
+              ROOT: false
+            })
+          );
+        })
+      );
+    });
+  }
+
+  async saveManyToManyRelations(namespace, options) {
+    return namespace.forEachManyToManyAsync(async ({ property, key, table, primaryKey, modelNames, keys }) => {
+      await Promise.all(
+        this[property].map(instance => {
+          instance[key] = this[primaryKey];
+          return instance.save(
+            Object.assign({}, options, {
+              ROOT: false
+            })
+          );
+        })
+      );
+
+      const relationIds = this[property].map(instance => instance.id);
+
+      await Promise.all(
+        relationIds.map(async relationId => {
+          const [key1, key2] = keys;
+          let ids;
+
+          if (this.constructor.name === modelNames[0]) {
+            ids = [this.id, relationId];
+          } else {
+            ids = [relationId, this.id];
+          }
+          const [value1, value2] = ids;
+
+          await r
+            .table(table)
+            .insert({
+              id: ids.join('_'),
+              [key1]: value1,
+              [key2]: value2
+            })
+            .run();
+        })
+      );
+    });
+  }
+
+  async save(options = {}) {
+    const namespace = Database.getNamespace(this.constructor);
+    const model = this;
+    options = Object.assign(
+      {
+        STACK: new Set(),
+        PENDING: [],
+        ROOT: true
+      },
+      options
+    );
+
+    if (options.STACK.has(this)) {
+      return this;
+    }
+
+    // beforeSave hooks
+    await namespace.beforeSaveHooks.reduce(
+      async (chain, hook) => chain.then(() => hook(model, namespace)),
+      Promise.resolve()
+    );
+
+    options.STACK.add(this);
+
+    // Save hasOne relations
+    await this.saveHasOneRelations(namespace, options);
+
+    // Perform insert / update
+    if (has(this, 'id')) {
+      await this.update(options);
+    } else {
+      await this.insert(options);
+    }
+
+    // Save hasMany relations
+    await this.saveHasManyRelations(namespace, options);
+    await this.saveManyToManyRelations(namespace, options);
+
+    options.STACK.delete(this);
+
+    // Fix up circular references
+    if (options.ROOT && options.PENDING) {
+      options.PENDING.forEach(update => update());
+    }
+
+    // afterSave hooks
+    await namespace.afterSaveHooks.reduce(async (chain, hook) => chain.then(() => hook(model)), Promise.resolve());
+
+    return this;
+  }
+
+  async insert() {
+    const namespace = Database.getNamespace(this.constructor);
+    const payload = {};
 
     await namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
       payload[key] = this[key];
-      if (definition.unique && this[key]) {
-        unique.push({ key, value: definition.type === String ? this[key].toLowerCase() : this[key] });
-      }
     });
-
-    if (unique.length > 0) {
-      await this.constructor.createUniqueLookups(unique, this.constructor.name);
-    }
 
     const result = await r
       .table(this.constructor.name)
       .insert(payload)
       .run();
     this.id = result.generated_keys[0];
-
-    await namespace.forEachHasManyAsync(async ({ property, key, primaryKey }) => {
-      await Promise.all(
-        this[property].map(instance => {
-          instance[key] = this[primaryKey];
-          return instance.save(
-            Object.assign({}, options, {
-              ROOT: false
-            })
-          );
-        })
-      );
-    });
-
-    await namespace.forEachManyToManyAsync(async ({ property, key, table, primaryKey, modelNames, keys }) => {
-      await Promise.all(
-        this[property].map(instance => {
-          instance[key] = this[primaryKey];
-          return instance.save(
-            Object.assign({}, options, {
-              ROOT: false
-            })
-          );
-        })
-      );
-
-      const relationIds = this[property].map(instance => instance.id);
-
-      await Promise.all(
-        relationIds.map(async relationId => {
-          const [key1, key2] = keys;
-          let ids;
-
-          if (this.constructor.name === modelNames[0]) {
-            ids = [this.id, relationId];
-          } else {
-            ids = [relationId, this.id];
-          }
-          const [value1, value2] = ids;
-
-          await r
-            .table(table)
-            .insert({
-              id: ids.join('_'),
-              [key1]: value1,
-              [key2]: value2
-            })
-            .run();
-        })
-      );
-    });
-
-    options.STACK.delete(this);
-
-    // Fix up circular references
-    if (options.ROOT && options.PENDING) {
-      options.PENDING.forEach(update => update());
-    }
   }
 
-  async update(options) {
-    const namespace = Database.getNamespace(this.constructor);
-    const payload = {};
-    const unique = [];
-
-    options.STACK.add(this);
-
-    await namespace.forEachHasOneAsync(async ({ property, key, foreignKey, model }) => {
-      if (this[property] instanceof model) {
-        if (options.STACK.has(this[property])) {
-          // Circular reference
-          options.PENDING.push(async () => {
-            this[key] = this[property][foreignKey];
-            await this.save(
-              Object.assign({}, options, {
-                ROOT: false
-              })
-            );
-          });
-        } else {
-          await this[property].save(
-            Object.assign({}, options, {
-              ROOT: false
-            })
-          );
-          if (typeof this[property][foreignKey] !== 'undefined') {
-            this[key] = this[property][foreignKey];
-          }
-        }
-      }
-    });
-
-    await namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
-      payload[key] = this[key];
-      if (definition.unique && this.pendingUpdate[key]) {
-        unique.push({
-          key,
-          value: definition.type === String ? this[key].toLowerCase() : this[key],
-          oldValue: definition.type === String ? this.oldValues[key].toLowerCase() : this.oldValues[key]
-        });
-      }
-    });
-
-    if (unique.length > 0) {
-      await this.constructor.createUniqueLookups(unique, this.constructor.name);
-    }
-
+  async update() {
     await r
       .table(this.constructor.name)
       .get(this.id)
       .update(this.pendingUpdate)
       .run();
-
-    await namespace.forEachHasManyAsync(async ({ property, key, primaryKey }) => {
-      await Promise.all(
-        this[property].map(instance => {
-          instance[key] = this[primaryKey];
-          return instance.save(
-            Object.assign({}, options, {
-              ROOT: false
-            })
-          );
-        })
-      );
-    });
-
-    await namespace.forEachManyToManyAsync(async ({ property, key, table, primaryKey, modelNames, keys }) => {
-      await Promise.all(
-        this[property].map(instance => {
-          instance[key] = this[primaryKey];
-          return instance.save(
-            Object.assign({}, options, {
-              ROOT: false
-            })
-          );
-        })
-      );
-
-      const relationIds = this[property].map(instance => instance.id);
-      // TODO(ralph): Make this smarter, only remove the relations that are actually removed instead of nuking and rewriting
-      /** /
-      await r
-        .table(table)
-        .getAll(this.id, {
-          index: key
-        })
-        .delete()
-        .run();
-      /**/
-
-      await Promise.all(
-        relationIds.map(async relationId => {
-          const [key1, key2] = keys;
-          let ids;
-
-          if (this.constructor.name === modelNames[0]) {
-            ids = [this.id, relationId];
-          } else {
-            ids = [relationId, this.id];
-          }
-          const [value1, value2] = ids;
-
-          await r
-            .table(table)
-            .insert({
-              id: ids.join('_'),
-              [key1]: value1,
-              [key2]: value2
-            })
-            .run();
-        })
-      );
-    });
-
-    options.STACK.delete(this);
-
-    // Fix up circular references
-    if (options.ROOT && options.PENDING) {
-      options.PENDING.forEach(update => update());
-    }
 
     this.pendingUpdate = {};
     this.oldValues = {};
