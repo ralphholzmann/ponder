@@ -348,55 +348,59 @@ Query.prototype.tapFilterRight = function tapFilterRight(args) {
 };
 
 Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = false }) => {
-  const indexList = await r
-    .table(tableName)
-    .indexList()
-    .run();
-
   if (typeof name === 'undefined' && properties.length === 1) {
     name = properties[0];
   }
 
-  if (!indexList.includes(name)) {
-    const args = [];
-    const options = {
-      multi,
-      geo
-    };
+  const args = [];
+  const options = {
+    multi,
+    geo
+  };
 
-    // Simple index
-    if (properties.length === 1) {
-      // Single property
-      if (!properties[0].includes('.')) {
-        args.push(properties[0], options);
-        // Single nested property
-      } else {
-        assert(
-          () => !!name,
-          `Index name missing for nested property ${properties[0]} on ${tableName} model. Please add a name to this index definition.`
-        );
-        args.push(name, selectRow(properties[0]), options);
-      }
-      // Compound indexes
+  // Simple index
+  if (properties.length === 1) {
+    // Single property
+    if (!properties[0].includes('.')) {
+      args.push(properties[0], options);
+      // Single nested property
     } else {
       assert(
         () => !!name,
-        `Index name missing for compound index on properties ${JSON.stringify(
-          properties
-        )} on ${tableName} model. Please add a name to this index definition.`
+        `Index name missing for nested property ${properties[0]} on ${tableName} model. Please add a name to this index definition.`
       );
-      args.push(name, properties.map(selectRow), options);
+      args.push(name, selectRow(properties[0]), options);
     }
-
-    await r
-      .table(tableName)
-      .indexCreate(...args)
-      .run();
-    await r
-      .table(tableName)
-      .indexWait()
-      .run();
+    // Compound indexes
+  } else {
+    assert(
+      () => !!name,
+      `Index name missing for compound index on properties ${JSON.stringify(
+        properties
+      )} on ${tableName} model. Please add a name to this index definition.`
+    );
+    args.push(name, properties.map(selectRow), options);
   }
+
+  await r
+    .branch(
+      rethinkdb
+        .table(tableName)
+        .indexList()
+        .contains(name)
+        .not(),
+      rethinkdb.branch(
+        rethinkdb
+          .table(tableName)
+          .indexCreate(...args)
+          .getField('created')
+          .eq(1),
+        rethinkdb.table(tableName).indexWait(name),
+        rethinkdb.expr(null)
+      ),
+      rethinkdb.expr(null)
+    )
+    .run();
 };
 
 const r = new Query();
