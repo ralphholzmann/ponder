@@ -248,14 +248,23 @@ function populateManyToMany(
 }
 
 Query.ensureTable = async function ensureTable(tableName: string): Promise<void> {
-  const tableList = await r.tableList().run();
-  if (!tableList.includes(tableName)) {
-    await r.tableCreate(tableName).run();
-    await r
-      .table(tableName)
-      .wait()
-      .run();
-  }
+  await r
+    .branch(
+      rethinkdb
+        .tableList()
+        .contains(tableName)
+        .not(),
+      rethinkdb.branch(
+        rethinkdb
+          .tableCreate(tableName)
+          .getField('tables_created')
+          .eq(1),
+        rethinkdb.table(tableName).wait(),
+        rethinkdb.expr(null)
+      ),
+      rethinkdb.expr(null)
+    )
+    .run();
 };
 
 REQL_METHODS.forEach((method: string): void => {
@@ -364,9 +373,7 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
       } else {
         assert(
           () => !!name,
-          `Index name missing for nested property ${properties[0]} on ${
-            tableName
-          } model. Please add a name to this index definition.`
+          `Index name missing for nested property ${properties[0]} on ${tableName} model. Please add a name to this index definition.`
         );
         args.push(name, selectRow(properties[0]), options);
       }
@@ -374,9 +381,9 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
     } else {
       assert(
         () => !!name,
-        `Index name missing for compound index on properties ${JSON.stringify(properties)} on ${
-          tableName
-        } model. Please add a name to this index definition.`
+        `Index name missing for compound index on properties ${JSON.stringify(
+          properties
+        )} on ${tableName} model. Please add a name to this index definition.`
       );
       args.push(name, properties.map(selectRow), options);
     }
