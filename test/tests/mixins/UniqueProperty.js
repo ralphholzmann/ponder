@@ -29,43 +29,56 @@ test('unique property creates index table to enforce uniqueness', async t => {
   t.true(tableList.includes('ChatUser_email_unique'));
 });
 
-/** /
 test('unique values creates static is[prop]Unique method and returns uniquess of given value', async t => {
-  t.false(await Character.isNameUnique('Crono'));
-  t.true(await Character.isNameUnique('Lavos'));
+  const chatUser = new ChatUser({
+    name: 'Ralph',
+    username: 'ralphholzmann',
+    email: 'ralph@example.com'
+  });
+  await chatUser.save();
+
+  const chatUser2 = new ChatUser({
+    name: 'Martin',
+    username: 'martin',
+    email: 'martin@example.com'
+  });
+  await chatUser2.save();
+
+  t.false(await ChatUser.isUsernameUnique('ralphholzmann'));
+  t.false(await ChatUser.isUsernameUnique('martin'));
+  t.true(await ChatUser.isUsernameUnique('crosby'));
 });
 
 test('throws error when trying to create model with duplicate unique value and does not save duplicate model', async t => {
-  let cronos = await Character.filter({ name: 'Crono' }).run();
-  t.is(cronos.length, 1);
-  const duplicate = new Character({
-    name: 'Crono',
-    age: 17,
-    weaponType: 'katana',
-    friends: ['Marle']
+  let chatUsers = await ChatUser.filter({ name: 'Ralph' }).run();
+  t.is(chatUsers.length, 1);
+
+  const duplicate = new ChatUser({
+    name: 'Ralph',
+    username: 'ralphholzmann',
+    email: 'ralph@example.com'
   });
   const error = await t.throws(duplicate.save());
-  t.is(error.message, "'Character.name' must be unique");
-  cronos = await Character.filter({ name: 'Crono' }).run();
-  t.is(cronos.length, 1);
+  t.is(error.message, "'ChatUser.username' must be unique");
+  chatUsers = await ChatUser.filter({ name: 'Ralph' }).run();
+  t.is(chatUsers.length, 1);
 });
 
 test('updates unique lookup table when updating unique value, deletes old unique record', async t => {
-  const [frog] = await Character.filter({ name: 'Frog' }).run();
-  frog.name = 'Kaeru';
-  await frog.save();
-  const updated = await Character.get(frog.id).run();
-  t.is(updated.name, 'Kaeru');
-  t.true(await Character.isNameUnique('Frog'));
+  const [ralph] = await ChatUser.filter({ name: 'Ralph' }).run();
+  ralph.username = 'ralph2';
+  await ralph.save();
+  const updated = await ChatUser.get(ralph.id).run();
+  t.is(updated.username, 'ralph2');
+  t.true(await ChatUser.isUsernameUnique('ralphholzmann'));
+  t.false(await ChatUser.isUsernameUnique('ralph2'));
 });
 
 test('throws error when trying to update table with nonunique value', async t => {
-  const [character] = await Character.filter({ name: 'Robo' }).run();
-  character.name = 'Crono';
-  const error = await t.throws(character.save());
-  t.is(error.message, "'Character.name' must be unique");
-  const cronos = await Character.filter({ name: 'Crono' }).run();
-  t.is(cronos.length, 1);
+  const [ralph] = await ChatUser.filter({ name: 'Ralph' }).run();
+  ralph.username = 'martin';
+  const error = await t.throws(ralph.save());
+  t.is(error.message, "'ChatUser.username' must be unique");
+  const chatUsers = await ChatUser.filter({ username: 'martin' }).run();
+  t.is(chatUsers.length, 1);
 });
-
-/**/

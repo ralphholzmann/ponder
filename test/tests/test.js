@@ -36,8 +36,8 @@ class Place extends Model {
 
 class Character extends Model {
   static schema = {
-    name: { type: String, allowNull: true, unique: true },
-    nickname: { type: String, allowNull: true, unique: true },
+    name: { type: String, allowNull: true },
+    nickname: { type: String, allowNull: true },
     age: { type: Number, allowNull: true },
     magicType: { type: String, allowNull: true },
     weaponType: { type: String, allowNull: true },
@@ -139,7 +139,6 @@ test('Queries return instances of models', async t => {
     age: 17
   }).run();
 
-  console.log('USER IS', user);
   t.true(user instanceof Character);
   t.is(user.name, 'Crono');
   t.is(user.age, 17);

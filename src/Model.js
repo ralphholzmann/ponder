@@ -22,9 +22,8 @@ export default class Model {
     return forEachAsync(get(this, property), iterator);
   }
 
-  static async setup(namespace: Namespace, models: Map<string, Class<Model>>): Promise<void> {
+  static async initialize(namespace: Namespace, models: Map<string, Class<Model>>): Promise<void> {
     await this.applyMixins(namespace);
-    await this.ensureUniqueLookupTables(namespace);
     await Query.ensureTable(this.name);
     await this.setupRelations(namespace, models);
     await this.createIndexes(namespace);
@@ -33,9 +32,7 @@ export default class Model {
   static async applyMixins(namespace: Namespace): void {
     const schemas = getInheritedPropertyList(this, 'schema');
     const setups = getInheritedPropertyList(this, 'setup');
-    if (setups.includes(this.setup)) {
-      setups.splice(setups.indexOf(this.setup), 1);
-    }
+
     const finalSchema = Object.assign({}, ...schemas);
     Object.keys(finalSchema).forEach((key: string) => namespace.addSchemaProperty(key, finalSchema[key]));
 
@@ -66,8 +63,6 @@ export default class Model {
 
     this.run = () => new ModelQuery(this).table(this.name).run();
   }
-
-  static async ensureUniqueLookupTables(namespace: Namespace): Promise<void> {}
 
   static with(...args) {
     return args.reduce((superclass, mixin) => mixin(superclass), Model);
@@ -162,39 +157,6 @@ export default class Model {
     await namespace.forEachIndexAsync(([name, definition]) => {
       return Query.ensureIndex(this.name, definition);
     });
-  }
-
-  static async createUniqueLookups(keys, model) {
-    const result = await Promise.all(
-      keys.map(({ key, value: id }) =>
-        r
-          .table(`${model}_${key}_unique`)
-          .insert({ id })
-          .run()
-      )
-    );
-    const errorIndex = result.findIndex(({ errors }) => errors > 0);
-    if (errorIndex > -1) {
-      await Promise.all(
-        result.filter(({ errors }) => errors === 0).map((item, index) =>
-          r
-            .table(`${model}_${result[index].key}_unique`)
-            .get(result[index].value)
-            .delete()
-            .run()
-        )
-      );
-      throw new Error(`'${model}.${keys[errorIndex].key}' must be unique`);
-    }
-    await Promise.all(
-      keys.filter(key => key.oldValue).map(({ key, oldValue: id }) =>
-        r
-          .table(`${model}_${key}_unique`)
-          .get(id)
-          .delete()
-          .run()
-      )
-    );
   }
 
   constructor(properties: Record) {
@@ -479,7 +441,10 @@ export default class Model {
     }
 
     // beforeSave hooks
-    await namespace.beforeSaveHooks.reduce(async (chain, hook) => chain.then(() => hook(model)), Promise.resolve());
+    await namespace.beforeSaveHooks.reduce(
+      async (chain, hook) => chain.then(() => hook(model, namespace)),
+      Promise.resolve()
+    );
 
     options.STACK.add(this);
 
@@ -510,21 +475,13 @@ export default class Model {
     return this;
   }
 
-  async insert(options) {
+  async insert() {
     const namespace = Database.getNamespace(this.constructor);
     const payload = {};
-    const unique = [];
 
     await namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
       payload[key] = this[key];
-      if (definition.unique && this[key]) {
-        unique.push({ key, value: definition.type === String ? this[key].toLowerCase() : this[key] });
-      }
     });
-
-    if (unique.length > 0) {
-      await this.constructor.createUniqueLookups(unique, this.constructor.name);
-    }
 
     const result = await r
       .table(this.constructor.name)
@@ -533,26 +490,7 @@ export default class Model {
     this.id = result.generated_keys[0];
   }
 
-  async update(options) {
-    const namespace = Database.getNamespace(this.constructor);
-    const payload = {};
-    const unique = [];
-
-    await namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
-      payload[key] = this[key];
-      if (definition.unique && this.pendingUpdate[key]) {
-        unique.push({
-          key,
-          value: definition.type === String ? this[key].toLowerCase() : this[key],
-          oldValue: definition.type === String ? this.oldValues[key].toLowerCase() : this.oldValues[key]
-        });
-      }
-    });
-
-    if (unique.length > 0) {
-      await this.constructor.createUniqueLookups(unique, this.constructor.name);
-    }
-
+  async update() {
     await r
       .table(this.constructor.name)
       .get(this.id)
