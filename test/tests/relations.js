@@ -380,3 +380,69 @@ test('Handles updating of many to many relations correctly', async t => {
   t.is(post2.tags.length, 1);
 });
 /**/
+
+class User extends Model {
+  static schema = {
+    username: String
+  };
+
+  static relations = {
+    hasMany: {
+      messages: {
+        model: 'Message'
+      },
+      reportedMessages: {
+        model: 'Message'
+      }
+    }
+  };
+}
+
+class Message extends Model {
+  static schema = {
+    text: String
+  };
+
+  static relations = {
+    hasMany: {
+      reporters: {
+        model: 'User'
+      }
+    }
+  };
+}
+
+Database.register(User);
+Database.register(Message);
+
+test('Handles multiple many to many relations of the same model types', async t => {
+  const user1 = new User({
+    username: 'jackson'
+  });
+
+  const user2 = new User({
+    username: 'ralph'
+  });
+
+  const message1 = new Message({
+    text: 'This is a test'
+  });
+
+  const message2 = new Message({
+    text: 'This is also a test'
+  });
+
+  user1.messages.push(message1);
+  user2.messages.push(message2);
+
+  await user1.save();
+  await user2.save();
+
+  user1.reportedMessages.push(message2);
+  await user1.save();
+
+  t.truthy(user1.id);
+  t.truthy(user2.id);
+
+  t.is(user1.reportedMessages[0].id, message2.id);
+});
