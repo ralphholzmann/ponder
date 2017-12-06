@@ -90,45 +90,40 @@ export default class Model {
 
     await this.getForEachAsync('relations.hasMany', async (definition: Object, property: string) => {
       const model = models.get(definition.model);
-      const manyToMany = [];
+      let manyToMany;
 
       await model.getForEachAsync('relations.hasMany', (foreignDefinition, foreignProperty) => {
         if (models.get(foreignDefinition.model) === this) {
-          manyToMany.push([foreignProperty, model]);
+          manyToMany = [foreignProperty, model];
         }
       });
 
-      if (manyToMany.length) {
-        await manyToMany.reduce((chain, [foreignProperty, manyModel]) => {
-          return chain.then(async () => {
-            const key = `${lcfirst(this.name)}Id`;
-            const foreignKey = `${lcfirst(manyModel.name)}Id`;
-            const keys = [key, foreignKey].sort();
-            const table = [[this.name, property].join('_'), [manyModel.name, foreignProperty].join('_')]
-              .sort()
-              .join('__');
-            const modelNames = [this.name, manyModel.name].sort();
+      if (manyToMany) {
+        const [foreignProperty, manyModel] = manyToMany;
+        const key = `${lcfirst(this.name)}Id`;
+        const foreignKey = `${lcfirst(manyModel.name)}Id`;
+        const keys = [key, foreignKey].sort();
+        const table = [[this.name, property].join('_'), [manyModel.name, foreignProperty].join('_')].sort().join('__');
+        const modelNames = [this.name, manyModel.name].sort();
 
-            namespace.addManyToMany({
-              property,
-              model,
-              key,
-              foreignKey,
-              keys,
-              table,
-              foreignProperty,
-              modelNames
-            });
+        namespace.addManyToMany({
+          property,
+          model,
+          key,
+          foreignKey,
+          keys,
+          table,
+          foreignProperty,
+          modelNames
+        });
 
-            await Query.ensureTable(table);
-            await Query.ensureIndex(table, {
-              properties: [keys[0]]
-            });
-            await Query.ensureIndex(table, {
-              properties: [keys[1]]
-            });
-          });
-        }, Promise.resolve());
+        await Query.ensureTable(table);
+        await Query.ensureIndex(table, {
+          properties: [keys[0]]
+        });
+        await Query.ensureIndex(table, {
+          properties: [keys[1]]
+        });
       } else {
         const primaryKey = definition.primaryKey || 'id';
         const key = `${lcfirst(this.name)}${capitalize(primaryKey)}`;
