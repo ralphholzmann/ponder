@@ -90,40 +90,45 @@ export default class Model {
 
     await this.getForEachAsync('relations.hasMany', async (definition: Object, property: string) => {
       const model = models.get(definition.model);
-      let manyToMany;
+      const manyToMany = [];
 
       model.getForEachAsync('relations.hasMany', (foreignDefinition, foreignProperty) => {
         if (models.get(foreignDefinition.model) === this) {
-          manyToMany = [foreignProperty, model];
+          manyToMany.push([foreignProperty, model]);
         }
       });
 
-      if (manyToMany) {
-        const [foreignProperty, manyModel] = manyToMany;
-        const key = `${lcfirst(this.name)}Id`;
-        const foreignKey = `${lcfirst(manyModel.name)}Id`;
-        const keys = [key, foreignKey].sort();
-        const table = [[this.name, property].join('_'), [manyModel.name, foreignProperty].join('_')].sort().join('__');
-        const modelNames = [this.name, manyModel.name].sort();
+      if (manyToMany.length) {
+        await manyToMany.reduce((chain, [foreignProperty, manyModel]) => {
+          return chain.then(async () => {
+            const key = `${lcfirst(this.name)}Id`;
+            const foreignKey = `${lcfirst(manyModel.name)}Id`;
+            const keys = [key, foreignKey].sort();
+            const table = [[this.name, property].join('_'), [manyModel.name, foreignProperty].join('_')]
+              .sort()
+              .join('__');
+            const modelNames = [this.name, manyModel.name].sort();
 
-        namespace.addManyToMany({
-          property,
-          model,
-          key,
-          foreignKey,
-          keys,
-          table,
-          foreignProperty,
-          modelNames
-        });
+            namespace.addManyToMany({
+              property,
+              model,
+              key,
+              foreignKey,
+              keys,
+              table,
+              foreignProperty,
+              modelNames
+            });
 
-        await Query.ensureTable(table);
-        await Query.ensureIndex(table, {
-          properties: [keys[0]]
-        });
-        await Query.ensureIndex(table, {
-          properties: [keys[1]]
-        });
+            await Query.ensureTable(table);
+            await Query.ensureIndex(table, {
+              properties: [keys[0]]
+            });
+            await Query.ensureIndex(table, {
+              properties: [keys[1]]
+            });
+          });
+        }, Promise.resolve());
       } else {
         const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey || 'id')}`;
         const relation = {
@@ -327,19 +332,19 @@ export default class Model {
       }
     });
 
-    Database.getNamespace(this.constructor).forEachHasOne(({ property, model }) => {
+    namespace.forEachHasOne(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
         this[property] = new model(properties[property]);
       }
     });
 
-    Database.getNamespace(this.constructor).forEachHasMany(({ property, model }) => {
+    namespace.forEachHasMany(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
         this[property] = properties[property].map(record => new model(record));
       }
     });
 
-    Database.getNamespace(this.constructor).forEachManyToMany(({ property, model }) => {
+    namespace.forEachManyToMany(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
         this[property] = properties[property].map(record => new model(record));
       }
