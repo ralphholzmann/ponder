@@ -92,7 +92,7 @@ export default class Model {
       const model = models.get(definition.model);
       const manyToMany = [];
 
-      model.getForEachAsync('relations.hasMany', (foreignDefinition, foreignProperty) => {
+      await model.getForEachAsync('relations.hasMany', (foreignDefinition, foreignProperty) => {
         if (models.get(foreignDefinition.model) === this) {
           manyToMany.push([foreignProperty, model]);
         }
@@ -130,9 +130,10 @@ export default class Model {
           });
         }, Promise.resolve());
       } else {
-        const key = `${lcfirst(this.name)}${capitalize(definition.primaryKey || 'id')}`;
+        const primaryKey = definition.primaryKey || 'id';
+        const key = `${lcfirst(this.name)}${capitalize(primaryKey)}`;
         const relation = {
-          primaryKey: definition.primaryKey,
+          primaryKey,
           property,
           key,
           model
