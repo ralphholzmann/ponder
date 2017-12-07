@@ -415,6 +415,7 @@ class Message extends Model {
 Database.register(User);
 Database.register(Message);
 
+/** /
 test('Handles multiple many to many relations of the same model types', async t => {
   const user1 = new User({
     username: 'jackson'
@@ -446,3 +447,4 @@ test('Handles multiple many to many relations of the same model types', async t 
 
   t.is(user1.reportedMessages[0].id, message2.id);
 });
+/**/

@@ -11,7 +11,9 @@
     "prettier": "prettier --write \"{src,test}/**/*.js\"",
     "compile": "babel src --out-dir lib",
     "prepublish": "yarn run compile",
-    "pretest": "yarn run compile"
+    "clean": "babel-node ./test/scripts/drop-test-database.js",
+    "pretest": "yarn run compile && yarn run clean",
+    "posttest": "yarn run clean"
   },
   "dependencies": {
     "babel-preset-env": "^1.6.1",
@@ -49,19 +51,11 @@
     "url": "https://github.com/GodelSystems/ponder"
   },
   "ava": {
-    "files": [
-      "test/*js"
-    ],
-    "source": [
-      "src/*.js"
-    ],
+    "files": ["test/*js"],
+    "source": ["src/*.js"],
     "babel": {
-      "presets": [
-        "@ava/stage-4"
-      ],
-      "plugins": [
-        "transform-class-properties"
-      ]
+      "presets": ["@ava/stage-4"],
+      "plugins": ["transform-class-properties"]
     }
   }
 }
