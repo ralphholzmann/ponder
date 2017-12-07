@@ -4,7 +4,6 @@ import Namespace from './Namespace';
 import Query from './Query';
 import type Model from './Model';
 
-const isTesting = process.env.NODE_ENV === 'test';
 const DEFAULT_RETHINKDB_HOST = 'localhost';
 const DEFAULT_RETHINKDB_PORT = 28015;
 const DEFAULT_RETHINKDB_DB = 'test';
@@ -58,14 +57,6 @@ export default class Database {
   }
 
   static async connect(): Promise<void> {
-    const databases = await this.execute(r.dbList());
-    if (isTesting && databases.indexOf(this.db) !== -1) {
-      try {
-        await this.execute(r.dbDrop(this.db));
-      } catch (error) {
-        throw new Error(error);
-      }
-    }
     await this.ensureDatabase();
     await Array.from(this.models.values()).reduce(async (chain, model: Class<Model>) => {
       return chain.then(() => model.initialize(this.namespaces.get(model), this.models));
@@ -84,9 +75,6 @@ export default class Database {
   }
 
   static async teardown() {
-    if (process.env.NODE_ENV === 'test') {
-      await this.execute(r.dbDrop(this.db));
-    }
     await this.disconnect();
   }
 
