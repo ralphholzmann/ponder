@@ -68,31 +68,41 @@ export default class Model {
     return args.reduce((superclass, mixin) => mixin(superclass), Model);
   }
 
-  static async setupRelations(namespace: Namespace, models: Map): Promise<void> {
-    this.getForEachAsync('relations.hasOne', (definition: Object, property: string) => {
-      const foreignKey = definition.foreignKey || 'id';
-      const key = `${property}${capitalize(foreignKey)}`;
-      const relation = {
-        property,
-        key,
-        foreignKey,
-        model: models.get(definition.model)
-      };
+  static normalizeRelation(property, definition) {
+    const relation = {
+      property
+    };
 
+    if (typeof definition === 'string') {
+      relation.foreignKey = 'id';
+      relation.model = models.get(definition);
+    } else {
+      relation.foreignKey = definition.foreignKey || 'id';
+      relation.model = models.get(definition.model);
+    }
+
+    relation.key = `${property}${capitalize(relation.foreignKey)}`;
+
+    return relation;
+  }
+
+  static async setupRelations(namespace: Namespace, models: Map): Promise<void> {
+    this.getForEachAsync('hasOne', (definition: Object | String, property: string) => {
+      const relation = this.normalizeRelation(property, definition);
       namespace.addHasOne(relation);
 
-      namespace.addSchemaProperty(key, {
+      namespace.addSchemaProperty(relation.key, {
         type: String,
         allowNull: true,
         relation
       });
     });
 
-    await this.getForEachAsync('relations.hasMany', async (definition: Object, property: string) => {
+    await this.getForEachAsync('hasMany', async (definition: Object, property: string) => {
       const model = models.get(definition.model);
       let manyToMany;
 
-      await model.getForEachAsync('relations.hasMany', (foreignDefinition, foreignProperty) => {
+      await model.getForEachAsync('hasMany', (foreignDefinition, foreignProperty) => {
         if (models.get(foreignDefinition.model) === this) {
           manyToMany = [foreignProperty, model];
         }

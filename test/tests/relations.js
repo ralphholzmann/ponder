@@ -7,13 +7,8 @@ class Asset extends Model {
     name: String
   };
 
-  static relations = {
-    hasMany: {
-      quotes: {
-        model: 'Quote',
-        primaryKey: 'id'
-      }
-    }
+  static hasMany = {
+    quotes: 'Quote'
   };
 }
 
@@ -28,13 +23,8 @@ class Quote extends Model {
     volume: Number
   };
 
-  static relations = {
-    hasOne: {
-      exchange: {
-        model: 'Exchange',
-        foreignKey: 'id'
-      }
-    }
+  static hasOne = {
+    exchange: 'Exchange'
   };
 }
 
@@ -46,13 +36,8 @@ class Exchange extends Model {
     website: String
   };
 
-  static relations = {
-    hasOne: {
-      country: {
-        model: 'Country',
-        foreignKey: 'id'
-      }
-    }
+  static hasOne = {
+    country: 'Country'
   };
 }
 
@@ -111,6 +96,7 @@ test('Can create complex relations before IDs exist', async t => {
   t.is(exchange.countryId, country.id);
 });
 
+/** /
 test('Can load complex relations', async t => {
   const [asset] = await Asset.filter({
     name: 'Apple Inc.'
@@ -359,7 +345,6 @@ test('Handles creation of many to many relations correctly', async t => {
   t.true(retrievedTag.posts[0] instanceof Post);
 });
 
-/** /
 test('Handles updating of many to many relations correctly', async t => {
   const [post] = await Post.filter({
     title: 'How to defeat Lavos, the easy way!'
@@ -379,7 +364,6 @@ test('Handles updating of many to many relations correctly', async t => {
     .run();
   t.is(post2.tags.length, 1);
 });
-/**/
 
 class User extends Model {
   static schema = {
@@ -415,7 +399,6 @@ class Message extends Model {
 Database.register(User);
 Database.register(Message);
 
-/** /
 test('Handles multiple many to many relations of the same model types', async t => {
   const user1 = new User({
     username: 'jackson'
