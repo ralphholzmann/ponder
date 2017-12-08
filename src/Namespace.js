@@ -19,6 +19,7 @@ export default class Namespace {
   model: Class<Model>;
   name: string;
   hasOne: Array<Relation>;
+  belongsTo: Array<Relation>;
   hasMany: Array<Relation>;
   manyToMany: Array<Relation>;
   schema: Map<string, Object>;
@@ -35,6 +36,7 @@ export default class Namespace {
     this.model = model;
     this.name = model.name;
     this.hasOne = [];
+    this.belongsTo = [];
     this.hasMany = [];
     this.manyToMany = [];
     this.relationProperties = [];
@@ -63,11 +65,6 @@ export default class Namespace {
 
   addIndex(name: string, definition: Object) {
     this.indexes.add({ name, ...definition });
-  }
-
-  addHasOne(relation: Relation) {
-    this.hasOne.push(relation);
-    this.relationProperties.push(relation.property);
   }
 
   forEachSchemaProperty(iterator: Function) {
@@ -111,6 +108,16 @@ export default class Namespace {
 
   forEachIndexAsync(iterator: Function) {
     return Namespace.forEachAsync(Array.from(this.indexes.entries()), iterator);
+  }
+
+  addHasOne(relation: Relation) {
+    this.hasOne.push(relation);
+    this.relationProperties.push(relation.property);
+  }
+
+  addBelongsTo(relation: Relation) {
+    this.belongsTo.push(relation);
+    this.relationProperties.push(relation.property);
   }
 
   addHasMany(relation: Relation) {

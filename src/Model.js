@@ -68,40 +68,98 @@ export default class Model {
     return args.reduce((superclass, mixin) => mixin(superclass), Model);
   }
 
-  static normalizeRelation(property, definition) {
-    const relation = {
-      property
-    };
+  static setupHasOneRelations(namespace: Namespace, models: Map): void {
+    Object.keys(this.hasOne).forEach(property => {
+      const definition = this.hasOne[property];
+      const relation = {
+        property
+      };
 
-    if (typeof definition === 'string') {
-      relation.foreignKey = 'id';
-      relation.model = models.get(definition);
-    } else {
-      relation.foreignKey = definition.foreignKey || 'id';
-      relation.model = models.get(definition.model);
-    }
+      if (typeof definition === 'string') {
+        relation.foreignKey = 'id';
+        relation.model = models.get(definition);
+      } else {
+        relation.foreignKey = definition.foreignKey || 'id';
+        relation.model = models.get(definition.model);
+      }
 
-    relation.key = `${property}${capitalize(relation.foreignKey)}`;
+      relation.key = `${this.name}${capitalize(property)}${capitalize(relation.foreignKey)}`;
 
-    return relation;
+      namespace.addHasOne(relation);
+      Database.getNamespace(relation.model).addSchemaProperty(relation.key, {
+        type: String,
+        allowNull: true,
+        relation
+      });
+    });
   }
 
-  static async setupRelations(namespace: Namespace, models: Map): Promise<void> {
-    this.getForEachAsync('hasOne', (definition: Object | String, property: string) => {
-      const relation = this.normalizeRelation(property, definition);
-      namespace.addHasOne(relation);
+  static setupBelongsToRelations(namespace: Namespace, models: Map): void {
+    Object.keys(this.belongsTo).forEach(property => {
+      const definition = this.belongsTo[property];
+      const relation = {
+        property
+      };
 
+      if (typeof definition === 'string') {
+        relation.foreignKey = 'id';
+        relation.model = models.get(definition);
+      } else {
+        relation.foreignKey = definition.foreignKey || 'id';
+        relation.model = models.get(definition.model);
+      }
+
+      relation.key = `${relation.model.name}${capitalize(property)}${capitalize(relation.foreignKey)}`;
+
+      namespace.addBelongsTo(relation);
       namespace.addSchemaProperty(relation.key, {
         type: String,
         allowNull: true,
         relation
       });
     });
+  }
+
+  static setupHasManyRelations(namespace: Namespace, models: Map): void {
+    Object.keys(this.hasMany).forEach(property => {
+      const definition = this.hasMany[property];
+      const relation = {
+        property
+      };
+
+      const relation = {
+        property
+      };
+
+      if (typeof definition === 'string') {
+        relation.foreignKey = 'id';
+        relation.model = models.get(definition);
+      } else {
+        relation.foreignKey = definition.foreignKey || 'id';
+        relation.model = models.get(definition.model);
+      }
+
+      relation.key = `${this.name}${capitalize(property)}${capitalize(relation.foreignKey)}`;
+
+      namespace.addHasOne(relation);
+      Database.getNamespace(relation.model).addSchemaProperty(relation.key, {
+        type: String,
+        allowNull: true,
+        relation
+      });
+    });
+  }
+
+  static async setupRelations(namespace: Namespace, models: Map): Promise<void> {
+    this.setupHasOneRelations(namespace, models);
+    this.setupBelongsToRelations(namespace, models);
+    this.setupHasManyRelations(namespace, models);
 
     await this.getForEachAsync('hasMany', async (definition: Object, property: string) => {
       const model = models.get(definition.model);
       let manyToMany;
 
+      /** /
       await model.getForEachAsync('hasMany', (foreignDefinition, foreignProperty) => {
         if (models.get(foreignDefinition.model) === this) {
           manyToMany = [foreignProperty, model];
@@ -161,6 +219,7 @@ export default class Model {
           properties: [key]
         });
       }
+      /**/
     });
   }
 
