@@ -127,10 +127,6 @@ export default class Model {
         property
       };
 
-      const relation = {
-        property
-      };
-
       if (typeof definition === 'string') {
         relation.foreignKey = 'id';
         relation.model = models.get(definition);
@@ -150,10 +146,35 @@ export default class Model {
     });
   }
 
+  static async setupHasAndBelongsToMany(namespace: Namespace, models: Map): Promise<void> {
+    return Object.keys(this.hasAndBelongsToMany).reduce((chain, property) => {
+      return chain.then(() => {
+        const definition = this.hasAndBelongsToMany[property];
+        const otherModel = typeof definition === 'string' ? models.get(definition) : models.get(definition.model);
+        const relation = {
+          property
+        };
+
+        relation.modelNames = [this.name, otherModel.name].sort();
+        relation.keyNames = relation.modelNames.map(name => `${name}Id`);
+
+        /** /
+        namespace.addHasOne(relation);
+        Database.getNamespace(relation.model).addSchemaProperty(relation.key, {
+          type: String,
+          allowNull: true,
+          relation
+        });
+        /**/
+      });
+    }, Promise.resolve());
+  }
+
   static async setupRelations(namespace: Namespace, models: Map): Promise<void> {
     this.setupHasOneRelations(namespace, models);
     this.setupBelongsToRelations(namespace, models);
     this.setupHasManyRelations(namespace, models);
+    await this.setupHasAndBelongsToMany(namespace, models);
 
     await this.getForEachAsync('hasMany', async (definition: Object, property: string) => {
       const model = models.get(definition.model);
