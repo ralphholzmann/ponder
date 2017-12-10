@@ -82,8 +82,16 @@ export default class Namespace {
     return this.hasOne.forEach(iterator);
   }
 
+  forEachBelongsTo(iterator: Function) {
+    return this.belongsTo.forEach(iterator);
+  }
+
   forEachHasOneAsync(iterator: Function) {
     return Namespace.forEachAsync(this.hasOne, iterator);
+  }
+
+  forEachBelongsToAsync(iterator: Function) {
+    return Namespace.forEachAsync(this.belongsTo, iterator);
   }
 
   forEachHasManyAsync(iterator: Function) {

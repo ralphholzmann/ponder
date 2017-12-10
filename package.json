@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "test":
-      "cross-env NODE_ENV='test' babel-node ./node_modules/.bin/ava --serial --timeout=15s test/tests/relations.js",
+      "cross-env NODE_ENV='test' babel-node ./node_modules/.bin/ava --serial --timeout=15s --verbose test/tests/relations.js",
     "lint": "eslint src test",
     "prettier": "prettier --write \"{src,test}/**/*.js\"",
     "compile": "babel src --out-dir lib",
@@ -19,7 +19,8 @@
   "dependencies": {
     "babel-preset-env": "^1.6.1",
     "debug": "^3.1.0",
-    "immutable": "^3.8.2"
+    "immutable": "^3.8.2",
+    "rethinkdb": "^2.3.3"
   },
   "devDependencies": {
     "ava": "^0.22.0",
