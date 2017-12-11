@@ -324,20 +324,15 @@ test('Handles updating of many to many relations correctly', async t => {
   t.is(post2.tags.length, 1);
 });
 
-/** /
 class User extends Model {
   static schema = {
     username: String
   };
 
-  static relations = {
-    hasMany: {
-      messages: {
-        model: 'Message'
-      },
-      reportedMessages: {
-        model: 'Message'
-      }
+  static hasAndBelongsToMany = {
+    reportedMessages: {
+      model: 'Message',
+      property: 'reportedBy'
     }
   };
 }
@@ -347,12 +342,8 @@ class Message extends Model {
     text: String
   };
 
-  static relations = {
-    hasMany: {
-      reporters: {
-        model: 'User'
-      }
-    }
+  static belongsTo = {
+    user: 'User'
   };
 }
 
@@ -369,25 +360,20 @@ test('Handles multiple many to many relations of the same model types', async t 
   });
 
   const message1 = new Message({
-    text: 'This is a test'
+    text: 'This is a test',
+    user: user1
   });
 
   const message2 = new Message({
-    text: 'This is also a test'
+    text: 'This is also a test',
+    user: user2
   });
 
-  user1.messages.push(message1);
-  user2.messages.push(message2);
+  await user1.reportedMessages.addRelation(message2);
 
-  await user1.save();
-  await user2.save();
+  const user1copy = await User.get(user1.id)
+    .populate()
+    .run();
 
-  user1.reportedMessages.push(message2);
-  await user1.save();
-
-  t.truthy(user1.id);
-  t.truthy(user2.id);
-
-  t.is(user1.reportedMessages[0].id, message2.id);
+  t.is(user1copy.reportedMessages.length, 1);
 });
-/**/

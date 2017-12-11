@@ -10,13 +10,8 @@ class Era extends Model {
     annoDomini: Boolean
   };
 
-  static relations = {
-    hasMany: {
-      places: {
-        model: 'Place',
-        primaryKey: 'id'
-      }
-    }
+  static hasMany = {
+    places: 'Place'
   };
 }
 
@@ -58,17 +53,9 @@ class Character extends Model {
     }
   ];
 
-  static relations = {
-    hasOne: {
-      equippedWeapon: {
-        model: 'Weapon',
-        foreignKey: 'id'
-      },
-      equippedArmor: {
-        model: 'Armor',
-        foreignKey: 'id'
-      }
-    }
+  static belongsTo = {
+    equippedWeapon: 'Weapon',
+    equippedArmor: 'Armor'
   };
 }
 
@@ -247,8 +234,9 @@ test('hasOne relations save correctly', async t => {
   character.equippedArmor = armor;
 
   await character.save();
-  t.is(character.equippedWeaponId, weapon.id);
-  t.is(character.equippedArmorId, armor.id);
+  console.log('c', character);
+  t.is(character.weaponEquippedweaponId, weapon.id);
+  t.is(character.armorEquippedArmorId, armor.id);
 });
 
 test('hasOne relations load correctly', async t => {
@@ -259,10 +247,10 @@ test('hasOne relations load correctly', async t => {
     .run();
 
   t.true(character.equippedWeapon instanceof Weapon);
-  t.is(character.equippedWeaponId, character.equippedWeapon.id);
+  t.is(character.weaponEquippedWeaponId, character.equippedWeapon.id);
 
   t.true(character.equippedArmor instanceof Armor);
-  t.is(character.equippedArmorId, character.equippedArmor.id);
+  t.is(character.armorEquippedArmorId, character.equippedArmor.id);
 });
 
 test('populate on single record', async t => {
@@ -274,10 +262,10 @@ test('populate on single record', async t => {
     .run();
 
   t.true(character.equippedWeapon instanceof Weapon);
-  t.is(character.equippedWeaponId, character.equippedWeapon.id);
+  t.is(character.weaponequippedWeaponId, character.equippedWeapon.id);
 
   t.true(character.equippedArmor instanceof Armor);
-  t.is(character.equippedArmorId, character.equippedArmor.id);
+  t.is(character.armorEquippedArmorId, character.equippedArmor.id);
 });
 
 test('populate on an instance', async t => {
@@ -289,10 +277,10 @@ test('populate on an instance', async t => {
   await character.populate();
 
   t.true(character.equippedWeapon instanceof Weapon);
-  t.is(character.equippedWeaponId, character.equippedWeapon.id);
+  t.is(character.weaponEquippedWeaponId, character.equippedWeapon.id);
 
   t.true(character.equippedArmor instanceof Armor);
-  t.is(character.equippedArmorId, character.equippedArmor.id);
+  t.is(character.armorEquippedArmorId, character.equippedArmor.id);
 });
 
 test('hasMany relations save correctly', async t => {
@@ -316,8 +304,8 @@ test('hasMany relations save correctly', async t => {
   });
   await truceInn.save();
 
-  era.places.push(leeneSquare);
-  era.places.push(truceInn);
+  await era.places.addRelation(leeneSquare);
+  await era.places.addRelation(truceInn);
 
   await leeneSquare.save();
   await truceInn.save();
@@ -381,7 +369,7 @@ test('Only includes schema properties when serializing', async t => {
   const schemaKeys = Object.keys(Character.schema);
 
   schemaKeys.push('id');
-  namespace.forEachHasOne(({ key, property }) => {
+  namespace.forEachBelongsTo(({ key, property }) => {
     schemaKeys.push(key);
     schemaKeys.push(property);
   });
