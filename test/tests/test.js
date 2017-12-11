@@ -234,8 +234,7 @@ test('hasOne relations save correctly', async t => {
   character.equippedArmor = armor;
 
   await character.save();
-  console.log('c', character);
-  t.is(character.weaponEquippedweaponId, weapon.id);
+  t.is(character.weaponEquippedWeaponId, weapon.id);
   t.is(character.armorEquippedArmorId, armor.id);
 });
 
@@ -262,7 +261,7 @@ test('populate on single record', async t => {
     .run();
 
   t.true(character.equippedWeapon instanceof Weapon);
-  t.is(character.weaponequippedWeaponId, character.equippedWeapon.id);
+  t.is(character.weaponEquippedWeaponId, character.equippedWeapon.id);
 
   t.true(character.equippedArmor instanceof Armor);
   t.is(character.armorEquippedArmorId, character.equippedArmor.id);
@@ -312,8 +311,8 @@ test('hasMany relations save correctly', async t => {
 
   t.is(era.places[0], leeneSquare);
   t.is(era.places[1], truceInn);
-  t.is(leeneSquare.eraId, era.id);
-  t.is(truceInn.eraId, era.id);
+  t.is(leeneSquare.eraPlacesId, era.id);
+  t.is(truceInn.eraPlacesId, era.id);
 });
 
 test('hasMany relations load correctly', async t => {
