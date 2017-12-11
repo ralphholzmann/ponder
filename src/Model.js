@@ -613,10 +613,21 @@ export default class Model {
     await this.saveBelongsToRelations(namespace, options);
 
     // Perform insert / update
-    if (has(this, 'id')) {
-      await this.update(options);
-    } else {
+    if (this.isNew()) {
+      // beforeSave hooks
+      await namespace.beforeCreateHooks.reduce(
+        async (chain, hook) => chain.then(() => hook(model, namespace)),
+        Promise.resolve()
+      );
+
       await this.insert(options);
+
+      await namespace.afterCreateHooks.reduce(
+        async (chain, hook) => chain.then(() => hook(model, namespace)),
+        Promise.resolve()
+      );
+    } else {
+      await this.update(options);
     }
 
     // Save hasMany relations

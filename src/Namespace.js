@@ -26,6 +26,8 @@ export default class Namespace {
   indexes: Set<Object>;
   beforeSaveHooks: Array<Function>;
   afterSaveHooks: Array<Function>;
+  beforeCreateHooks: Array<Function>;
+  afterCreateHooks: Array<Function>;
   relationProperties: Array<string>;
 
   static forEachAsync(array: Array<any>, iterator: Function) {
@@ -48,6 +50,8 @@ export default class Namespace {
 
     this.beforeSaveHooks = getInheritedPropertyList(model, 'beforeSave');
     this.afterSaveHooks = getInheritedPropertyList(model, 'afterSave');
+    this.beforeCreateHooks = getInheritedPropertyList(model, 'beforeCreate');
+    this.afterCreateHooks = getInheritedPropertyList(model, 'afterCreate');
   }
 
   addSchemaProperty(property: string, definition: any) {
