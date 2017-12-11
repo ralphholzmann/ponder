@@ -6,7 +6,7 @@
   "author": "Ralph Holzmann",
   "license": "MIT",
   "scripts": {
-    "test": "cross-env NODE_ENV='test' babel-node ./node_modules/.bin/ava --serial --timeout=15s test/tests",
+    "test": "cross-env NODE_ENV='test' babel-node ./node_modules/.bin/ava --serial --timeout=15s --verbose test/tests",
     "lint": "eslint src test",
     "prettier": "prettier --write \"{src,test}/**/*.js\"",
     "compile": "babel src --out-dir lib",
@@ -18,7 +18,8 @@
   "dependencies": {
     "babel-preset-env": "^1.6.1",
     "debug": "^3.1.0",
-    "immutable": "^3.8.2"
+    "immutable": "^3.8.2",
+    "rethinkdb": "^2.3.3"
   },
   "devDependencies": {
     "ava": "^0.22.0",
@@ -51,19 +52,11 @@
     "url": "https://github.com/GodelSystems/ponder"
   },
   "ava": {
-    "files": [
-      "test/*js"
-    ],
-    "source": [
-      "src/*.js"
-    ],
+    "files": ["test/*js"],
+    "source": ["src/*.js"],
     "babel": {
-      "presets": [
-        "@ava/stage-4"
-      ],
-      "plugins": [
-        "transform-class-properties"
-      ]
+      "presets": ["@ava/stage-4"],
+      "plugins": ["transform-class-properties"]
     }
   }
 }

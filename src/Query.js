@@ -1,14 +1,17 @@
 /* @flow */
 /* eslint-disable no-use-before-define */
 import rethinkdb from 'rethinkdb';
+import debug from 'debug';
 import ModelCursor from './ModelCursor';
 import { transforms, getInheritedPropertyList, REQL_METHODS, selectRow, assert } from './util';
 import Database from './Database';
 import type Model from './Model';
 import type Namespace from './Namespace';
 import { Set } from 'immutable';
+import util from 'util';
 
 const { hasOwnProperty } = Object.prototype;
+const log = debug('ponder:query');
 
 type QueryOptions = {
   model?: Model,
@@ -79,21 +82,21 @@ Query.prototype.populate = function populate(relations = null): rethinkdb.Operat
   const namespace = Database.getNamespace(this.model);
   const populated: Set<Class<Model>> = new Set().add(this.model);
 
-  query = populateHasOne(query, namespace, relations, populated, method);
+  query = populateBelongsTo(query, namespace, relations, populated, method);
   query = populateHasMany(query, namespace, relations, populated, method);
   query = populateManyToMany(query, namespace, relations, populated, method);
 
   return query;
 };
 
-function populateHasOne(
+function populateBelongsTo(
   query: Query,
   namespace: Namespace,
   relations: Object | Boolean | null,
   populated: Set<Class<Model>>,
   method: string = 'map'
 ): Query {
-  namespace.forEach('hasOne', ({ property, key, foreignKey, model }) => {
+  namespace.forEach('belongsTo', ({ property, key, foreignKey, model }) => {
     let nextRelations = null;
     if (relations === null || relations) {
       if (typeof relations === 'object' && relations !== null) {
@@ -119,7 +122,7 @@ function populateHasOne(
             .default(null);
 
           if (!populated.has(model)) {
-            subQuery = populateHasOne(
+            subQuery = populateBelongsTo(
               subQuery,
               Database.getNamespace(model),
               nextRelations,
@@ -182,7 +185,7 @@ function populateHasMany(
             .coerceTo('array');
 
           if (!populated.has(model)) {
-            subQuery = populateHasOne(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
+            subQuery = populateBelongsTo(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
             subQuery = populateHasMany(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
             subQuery = populateManyToMany(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
           }
@@ -206,7 +209,7 @@ function populateManyToMany(
   populated: Set<Class<Model>>,
   method: string = 'map'
 ): Query {
-  namespace.forEach('manyToMany', ({ property, key, primaryKey, model, table, foreignKey }) => {
+  namespace.forEach('manyToMany', ({ property, myKey, theirKey, model, tableName }) => {
     let nextRelations = null;
     if (relations === null || relations) {
       if (typeof relations === 'object' && relations !== null) {
@@ -220,17 +223,17 @@ function populateManyToMany(
         result.ne(null),
         result.merge(function() {
           let subQuery = rethinkdb
-            .table(table)
+            .table(tableName)
             .getAll(result.getField('id'), {
-              index: key
+              index: myKey
             })
             .coerceTo('array')
             .map(function(result) {
-              return rethinkdb.table(model.name).get(result.getField(foreignKey));
+              return rethinkdb.table(model.name).get(result.getField(theirKey));
             });
 
           if (!populated.has(model)) {
-            subQuery = populateHasOne(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
+            subQuery = populateBelongsTo(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
             subQuery = populateHasMany(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
             subQuery = populateManyToMany(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
           }
@@ -248,7 +251,8 @@ function populateManyToMany(
 }
 
 Query.ensureTable = async function ensureTable(tableName: string): Promise<void> {
-  await r
+  log(`creating table ${tableName}`);
+  return r
     .branch(
       rethinkdb
         .tableList()
@@ -347,10 +351,12 @@ Query.prototype.tapFilterRight = function tapFilterRight(args) {
   });
 };
 
-Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = false }) => {
+Query.ensureIndex = (tableName, { name, properties, multi = false, geo = false }) => {
   if (typeof name === 'undefined' && properties.length === 1) {
     name = properties[0];
   }
+
+  log(`create index ${tableName}.${name}`);
 
   const args = [];
   const options = {
@@ -382,7 +388,7 @@ Query.ensureIndex = async (tableName, { name, properties, multi = false, geo = f
     args.push(name, properties.map(selectRow), options);
   }
 
-  await r
+  return r
     .branch(
       rethinkdb
         .table(tableName)

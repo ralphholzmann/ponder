@@ -2,18 +2,17 @@ import test from 'ava';
 import { Model } from '../../lib';
 import Database from '../lib/database';
 
+test.before(async () => {
+  await Database.connect();
+});
+
 class Asset extends Model {
   static schema = {
     name: String
   };
 
-  static relations = {
-    hasMany: {
-      quotes: {
-        model: 'Quote',
-        primaryKey: 'id'
-      }
-    }
+  static hasMany = {
+    quotes: 'Quote'
   };
 }
 
@@ -28,13 +27,8 @@ class Quote extends Model {
     volume: Number
   };
 
-  static relations = {
-    hasOne: {
-      exchange: {
-        model: 'Exchange',
-        foreignKey: 'id'
-      }
-    }
+  static belongsTo = {
+    exchange: 'Exchange'
   };
 }
 
@@ -46,13 +40,8 @@ class Exchange extends Model {
     website: String
   };
 
-  static relations = {
-    hasOne: {
-      country: {
-        model: 'Country',
-        foreignKey: 'id'
-      }
-    }
+  static belongsTo = {
+    country: 'Country'
   };
 }
 
@@ -68,10 +57,6 @@ Database.register(Asset);
 Database.register(Quote);
 Database.register(Exchange);
 Database.register(Country);
-
-test.before(async () => {
-  await Database.connect();
-});
 
 test('Can create complex relations before IDs exist', async t => {
   const asset = new Asset({
@@ -103,12 +88,11 @@ test('Can create complex relations before IDs exist', async t => {
 
   exchange.country = country;
   quote.exchange = exchange;
-  asset.quotes.push(quote);
+  await asset.quotes.addRelation(quote);
 
-  await asset.save();
-  t.is(asset.id, quote.assetId);
-  t.is(quote.exchangeId, exchange.id);
-  t.is(exchange.countryId, country.id);
+  t.is(asset.id, quote.assetQuotesId);
+  t.is(quote.exchangeExchangeId, exchange.id);
+  t.is(exchange.countryCountryId, country.id);
 });
 
 test('Can load complex relations', async t => {
@@ -144,13 +128,8 @@ class A extends Model {
     name: String
   };
 
-  static relations = {
-    hasOne: {
-      b: {
-        model: 'B',
-        foreignKey: 'id'
-      }
-    }
+  static belongsTo = {
+    b: 'B'
   };
 }
 
@@ -159,13 +138,8 @@ class B extends Model {
     name: String
   };
 
-  static relations = {
-    hasOne: {
-      a: {
-        model: 'A',
-        foreignKey: 'id'
-      }
-    }
+  static belongsTo = {
+    a: 'A'
   };
 }
 
@@ -186,8 +160,8 @@ test('Can handle 1:1 circular dependencies', async t => {
 
   await a.save();
 
-  t.is(a.bId, b.id);
-  t.is(b.aId, a.id);
+  t.is(a.bBId, b.id);
+  t.is(b.aAId, a.id);
 });
 
 class C extends Model {
@@ -195,13 +169,8 @@ class C extends Model {
     name: String
   };
 
-  static relations = {
-    hasOne: {
-      d: {
-        model: 'D',
-        foreignKey: 'id'
-      }
-    }
+  static belongsTo = {
+    d: 'D'
   };
 }
 
@@ -210,13 +179,8 @@ class D extends Model {
     name: String
   };
 
-  static relations = {
-    hasOne: {
-      e: {
-        model: 'E',
-        foreignKey: 'id'
-      }
-    }
+  static belongsTo = {
+    e: 'E'
   };
 }
 
@@ -225,13 +189,8 @@ class E extends Model {
     name: String
   };
 
-  static relations = {
-    hasOne: {
-      c: {
-        model: 'C',
-        foreignKey: 'id'
-      }
-    }
+  static belongsTo = {
+    c: 'C'
   };
 }
 
@@ -258,9 +217,9 @@ test('Can handle saving 3 way circular dependencies', async t => {
 
   await c.save();
 
-  t.is(c.dId, d.id);
-  t.is(d.eId, e.id);
-  t.is(e.cId, c.id);
+  t.is(c.dDId, d.id);
+  t.is(d.eEId, e.id);
+  t.is(e.cCId, c.id);
 });
 
 test('Can handle loading 3 way circular dependencies', async t => {
@@ -280,12 +239,10 @@ class Post extends Model {
     date: Date
   };
 
-  static relations = {
-    hasMany: {
-      tags: {
-        model: 'Tag',
-        foreignKey: 'id'
-      }
+  static hasAndBelongsToMany = {
+    tags: {
+      model: 'Tag',
+      property: 'posts'
     }
   };
 }
@@ -293,15 +250,6 @@ class Post extends Model {
 class Tag extends Model {
   static schema = {
     name: String
-  };
-
-  static relations = {
-    hasMany: {
-      posts: {
-        model: 'Post',
-        foreignKey: 'id'
-      }
-    }
   };
 }
 
@@ -322,15 +270,13 @@ test('Handles creation of many to many relations correctly', async t => {
     name: 'lavos'
   });
 
-  post.tags.push(tag1);
+  await post.tags.addRelation(tag1);
   t.is(post.tags[0], tag1);
   t.is(tag1.posts[0], post);
 
-  post.tags.push(tag2);
+  await post.tags.addRelation(tag2);
   t.is(post.tags[1], tag2);
   t.is(tag2.posts[0], post);
-
-  await post.save();
 
   t.truthy(post.id);
   t.truthy(tag1.id);
@@ -359,7 +305,6 @@ test('Handles creation of many to many relations correctly', async t => {
   t.true(retrievedTag.posts[0] instanceof Post);
 });
 
-/** /
 test('Handles updating of many to many relations correctly', async t => {
   const [post] = await Post.filter({
     title: 'How to defeat Lavos, the easy way!'
@@ -368,8 +313,7 @@ test('Handles updating of many to many relations correctly', async t => {
     .run();
 
   t.is(post.tags.length, 2);
-  post.tags.pop();
-  await post.save();
+  await post.tags.removeRelation(post.tags[0]);
   t.is(post.tags.length, 1);
 
   const [post2] = await Post.filter({
@@ -379,21 +323,16 @@ test('Handles updating of many to many relations correctly', async t => {
     .run();
   t.is(post2.tags.length, 1);
 });
-/**/
 
 class User extends Model {
   static schema = {
     username: String
   };
 
-  static relations = {
-    hasMany: {
-      messages: {
-        model: 'Message'
-      },
-      reportedMessages: {
-        model: 'Message'
-      }
+  static hasAndBelongsToMany = {
+    reportedMessages: {
+      model: 'Message',
+      property: 'reportedBy'
     }
   };
 }
@@ -403,19 +342,14 @@ class Message extends Model {
     text: String
   };
 
-  static relations = {
-    hasMany: {
-      reporters: {
-        model: 'User'
-      }
-    }
+  static belongsTo = {
+    user: 'User'
   };
 }
 
 Database.register(User);
 Database.register(Message);
 
-/** /
 test('Handles multiple many to many relations of the same model types', async t => {
   const user1 = new User({
     username: 'jackson'
@@ -426,25 +360,20 @@ test('Handles multiple many to many relations of the same model types', async t 
   });
 
   const message1 = new Message({
-    text: 'This is a test'
+    text: 'This is a test',
+    user: user1
   });
 
   const message2 = new Message({
-    text: 'This is also a test'
+    text: 'This is also a test',
+    user: user2
   });
 
-  user1.messages.push(message1);
-  user2.messages.push(message2);
+  await user1.reportedMessages.addRelation(message2);
 
-  await user1.save();
-  await user2.save();
+  const user1copy = await User.get(user1.id)
+    .populate()
+    .run();
 
-  user1.reportedMessages.push(message2);
-  await user1.save();
-
-  t.truthy(user1.id);
-  t.truthy(user2.id);
-
-  t.is(user1.reportedMessages[0].id, message2.id);
+  t.is(user1copy.reportedMessages.length, 1);
 });
-/**/
