@@ -30,7 +30,6 @@ export default class Model {
     await this.applyMixins(namespace);
     await Query.ensureTable(this.name);
     await this.setupRelations(namespace, models);
-    await this.createIndexes(namespace);
     log(`finished initializing ${this.name}`);
   }
 

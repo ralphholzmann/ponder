@@ -61,6 +61,9 @@ export default class Database {
     await Array.from(this.models.values()).reduce(async (chain, model: Class<Model>) => {
       return chain.then(() => model.initialize(this.namespaces.get(model), this.models));
     }, Promise.resolve());
+    await Array.from(this.models.values()).reduce(async (chain, model: Class<Model>) => {
+      return chain.then(() => model.createIndexes(this.namespaces.get(model)));
+    }, Promise.resolve());
   }
 
   static async execute(query: r.Operation<any>): Promise<string[]> {
