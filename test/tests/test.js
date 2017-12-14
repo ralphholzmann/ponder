@@ -383,3 +383,14 @@ test('Only includes schema properties when serializing', async t => {
 
   Object.keys(serialized).forEach(key => t.true(schemaKeys.includes(key)));
 });
+
+test('Serializes hasMany relations correctly', async t => {
+  const [era] = await Era.filter({
+    name: 'present'
+  })
+    .populate()
+    .run();
+
+  const json = JSON.parse(JSON.stringify(era));
+  t.true(Array.isArray(json.places));
+});

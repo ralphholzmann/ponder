@@ -256,11 +256,9 @@ export default class Model {
   }
 
   createArrayProxy(property, addModifier, removeModifier, value = []) {
-    let sealed = false;
-
     const setHandler = {
       set: (target, prop, value) => {
-        if (sealed) {
+        if (target.isSealed() && prop !== 'sealed') {
           throw new Error(
             `Cannot set property ${prop} on ${this.constructor.name}.${
               property
@@ -272,54 +270,57 @@ export default class Model {
       }
     };
 
-    const relation = Object.create(Array.prototype, {
-      addRelation: {
-        value: async item => {
-          relation.unseal();
+    class Relation extends Array {
+      model: Model;
+      sealed: boolean;
 
-          if (this.isNew()) {
-            await this.save();
-          }
-
-          await addModifier(proxy, item);
-
-          relation.seal();
-        }
-      },
-      removeRelation: {
-        value: async item => {
-          relation.unseal();
-
-          if (this.isNew()) {
-            await this.save();
-          }
-
-          await removeModifier(proxy, item);
-          relation.seal();
-        }
-      },
-      seal: {
-        value: () => {
-          sealed = true;
-        }
-      },
-      unseal: {
-        value: () => {
-          sealed = false;
-        }
-      },
-      isSealed: {
-        value: () => sealed
+      constructor(model: Model) {
+        super();
+        this.model = model;
+        this.sealed = false;
       }
-    });
+
+      async addRelation(item) {
+        this.unseal();
+
+        if (this.model.isNew()) {
+          await this.model.save();
+        }
+
+        await addModifier(proxy, item);
+
+        this.seal();
+      }
+      async removeRelation(item) {
+        this.unseal();
+
+        if (this.model.isNew()) {
+          await this.model.save();
+        }
+
+        await removeModifier(proxy, item);
+        this.seal();
+      }
+
+      seal() {
+        this.sealed = true;
+      }
+      unseal() {
+        this.sealed = false;
+      }
+      isSealed() {
+        return this.sealed;
+      }
+    }
+
+    const relation = new Relation(this);
 
     if (value.length) {
       relation.push(...value);
     }
 
-    relation.seal();
-
     let proxy = new Proxy(relation, setHandler);
+    relation.seal();
     return proxy;
   }
 
