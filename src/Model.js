@@ -238,7 +238,7 @@ export default class Model {
       Object.defineProperty(this, key, {
         enumerable: true,
         set(value) {
-          if (!has(this.oldValues, key)) {
+          if (this.oldValues[key] === undefined) {
             this.oldValues[key] = currentValue;
           }
 
