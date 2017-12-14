@@ -270,11 +270,9 @@ test('Handles creation of many to many relations correctly', async t => {
     name: 'lavos'
   });
 
-  await post.tags.addRelation(tag1);
+  await post.tags.addRelation(tag1, tag2);
   t.is(post.tags[0], tag1);
   t.is(tag1.posts[0], post);
-
-  await post.tags.addRelation(tag2);
   t.is(post.tags[1], tag2);
   t.is(tag2.posts[0], post);
 

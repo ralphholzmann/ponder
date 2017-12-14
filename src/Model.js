@@ -280,26 +280,29 @@ export default class Model {
         this.sealed = false;
       }
 
-      async addRelation(item) {
+      async addRelation(...items) {
         this.unseal();
 
         if (this.model.isNew()) {
           await this.model.save();
         }
 
-        await addModifier(proxy, item);
+        await Promise.all(items.map(item => addModifier(proxy, item)));
 
         this.seal();
+
+        return this.model;
       }
-      async removeRelation(item) {
+      async removeRelation(...items) {
         this.unseal();
 
         if (this.model.isNew()) {
           await this.model.save();
         }
 
-        await removeModifier(proxy, item);
+        await Promise.all(items.map(item => removeModifier(proxy, item)));
         this.seal();
+        return this.model;
       }
 
       seal() {
