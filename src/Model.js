@@ -90,6 +90,8 @@ export default class Model {
         relation.model = models.get(definition.model);
       }
 
+      relation.table = this.name;
+
       relation.key = `${lcfirst(property)}${capitalize(relation.foreignKey)}`;
 
       namespace.addHasOne(relation);
@@ -529,6 +531,12 @@ export default class Model {
       }
     });
 
+    namespace.forEachHasOne(({ property, model }) => {
+      if (has(properties, property) && properties[property] !== null) {
+        this[property] = new model(properties[property]);
+      }
+    });
+
     namespace.forEachHasMany(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
         this[property] = properties[property].map(record => new model(record));
@@ -594,7 +602,7 @@ export default class Model {
   }
 
   async saveManyToManyRelations(namespace, options) {
-    return namespace.forEachManyToManyAsync(async ({ property, key, table, primaryKey, modelNames, keys }) => {
+    return namespace.forEachManyToManyAsync(async ({ property, key, tableName, primaryKey, modelNames, keys }) => {
       await Promise.all(
         this[property].map(instance => {
           instance[key] = this[primaryKey];
@@ -603,31 +611,6 @@ export default class Model {
               ROOT: false
             })
           );
-        })
-      );
-
-      const relationIds = this[property].map(instance => instance.id);
-
-      await Promise.all(
-        relationIds.map(async relationId => {
-          const [key1, key2] = keys;
-          let ids;
-
-          if (this.constructor.name === modelNames[0]) {
-            ids = [this.id, relationId];
-          } else {
-            ids = [relationId, this.id];
-          }
-          const [value1, value2] = ids;
-
-          await r
-            .table(table)
-            .insert({
-              id: ids.join('_'),
-              [key1]: value1,
-              [key2]: value2
-            })
-            .run();
         })
       );
     });

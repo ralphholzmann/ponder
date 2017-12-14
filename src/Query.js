@@ -83,6 +83,7 @@ Query.prototype.populate = function populate(relations = null): rethinkdb.Operat
   const populated: Set<Class<Model>> = new Set().add(this.model);
 
   query = populateBelongsTo(query, namespace, relations, populated, method);
+  query = populateHasOne(query, namespace, relations, populated, method);
   query = populateHasMany(query, namespace, relations, populated, method);
   query = populateManyToMany(query, namespace, relations, populated, method);
 
@@ -123,6 +124,87 @@ function populateBelongsTo(
 
           if (!populated.has(model)) {
             subQuery = populateBelongsTo(
+              subQuery,
+              Database.getNamespace(model),
+              nextRelations,
+              populated.add(model),
+              'do'
+            );
+            subQuery = populateHasOne(
+              subQuery,
+              Database.getNamespace(model),
+              nextRelations,
+              populated.add(model),
+              'do'
+            );
+            subQuery = populateHasMany(
+              subQuery,
+              Database.getNamespace(model),
+              nextRelations,
+              populated.add(model),
+              'do'
+            );
+            subQuery = populateManyToMany(
+              subQuery,
+              Database.getNamespace(model),
+              nextRelations,
+              populated.add(model),
+              'do'
+            );
+          }
+          return {
+            [property]: subQuery
+          };
+        }),
+        rethinkdb.expr(null)
+      );
+    });
+  });
+
+  return query;
+}
+
+function populateHasOne(
+  query: Query,
+  namespace: Namespace,
+  relations: Object | Boolean | null,
+  populated: Set<Class<Model>>,
+  method: string = 'map'
+): Query {
+  namespace.forEach('hasOne', ({ property, key, foreignKey, model, table }) => {
+    let nextRelations = null;
+    if (relations === null || relations) {
+      if (typeof relations === 'object' && relations !== null) {
+        nextRelations = relations[property];
+      }
+      if (relations === true) {
+        return;
+      }
+    } else {
+      return;
+    }
+
+    query = query[method](result => {
+      return rethinkdb.branch(
+        result.ne(null),
+        result.merge(function() {
+          let subQuery = rethinkdb
+            .table(model.name)
+            .getAll(foreignKey, {
+              index: key
+            })
+            .nth(0)
+            .default(null);
+
+          if (!populated.has(model)) {
+            subQuery = populateBelongsTo(
+              subQuery,
+              Database.getNamespace(model),
+              nextRelations,
+              populated.add(model),
+              'do'
+            );
+            subQuery = populateHasOne(
               subQuery,
               Database.getNamespace(model),
               nextRelations,
@@ -186,6 +268,7 @@ function populateHasMany(
 
           if (!populated.has(model)) {
             subQuery = populateBelongsTo(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
+            subQuery = populateHasOne(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
             subQuery = populateHasMany(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
             subQuery = populateManyToMany(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
           }
@@ -234,6 +317,7 @@ function populateManyToMany(
 
           if (!populated.has(model)) {
             subQuery = populateBelongsTo(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
+            subQuery = populateHasOne(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
             subQuery = populateHasMany(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
             subQuery = populateManyToMany(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
           }
