@@ -234,8 +234,8 @@ test('hasOne relations save correctly', async t => {
   character.equippedArmor = armor;
 
   await character.save();
-  t.is(character.weaponEquippedWeaponId, weapon.id);
-  t.is(character.armorEquippedArmorId, armor.id);
+  t.is(character.equippedWeaponId, weapon.id);
+  t.is(character.equippedArmorId, armor.id);
 });
 
 test('hasOne relations load correctly', async t => {
@@ -246,10 +246,10 @@ test('hasOne relations load correctly', async t => {
     .run();
 
   t.true(character.equippedWeapon instanceof Weapon);
-  t.is(character.weaponEquippedWeaponId, character.equippedWeapon.id);
+  t.is(character.equippedWeaponId, character.equippedWeapon.id);
 
   t.true(character.equippedArmor instanceof Armor);
-  t.is(character.armorEquippedArmorId, character.equippedArmor.id);
+  t.is(character.equippedArmorId, character.equippedArmor.id);
 });
 
 test('populate on single record', async t => {
@@ -261,10 +261,10 @@ test('populate on single record', async t => {
     .run();
 
   t.true(character.equippedWeapon instanceof Weapon);
-  t.is(character.weaponEquippedWeaponId, character.equippedWeapon.id);
+  t.is(character.equippedWeaponId, character.equippedWeapon.id);
 
   t.true(character.equippedArmor instanceof Armor);
-  t.is(character.armorEquippedArmorId, character.equippedArmor.id);
+  t.is(character.equippedArmorId, character.equippedArmor.id);
 });
 
 test('populate on an instance', async t => {
@@ -276,10 +276,10 @@ test('populate on an instance', async t => {
   await character.populate();
 
   t.true(character.equippedWeapon instanceof Weapon);
-  t.is(character.weaponEquippedWeaponId, character.equippedWeapon.id);
+  t.is(character.equippedWeaponId, character.equippedWeapon.id);
 
   t.true(character.equippedArmor instanceof Armor);
-  t.is(character.armorEquippedArmorId, character.equippedArmor.id);
+  t.is(character.equippedArmorId, character.equippedArmor.id);
 });
 
 test('hasMany relations save correctly', async t => {
@@ -311,8 +311,8 @@ test('hasMany relations save correctly', async t => {
 
   t.is(era.places[0], leeneSquare);
   t.is(era.places[1], truceInn);
-  t.is(leeneSquare.eraPlacesId, era.id);
-  t.is(truceInn.eraPlacesId, era.id);
+  t.is(leeneSquare.eraId, era.id);
+  t.is(truceInn.eraId, era.id);
 });
 
 test('hasMany relations load correctly', async t => {

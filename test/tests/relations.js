@@ -90,9 +90,9 @@ test('Can create complex relations before IDs exist', async t => {
   quote.exchange = exchange;
   await asset.quotes.addRelation(quote);
 
-  t.is(asset.id, quote.assetQuotesId);
-  t.is(quote.exchangeExchangeId, exchange.id);
-  t.is(exchange.countryCountryId, country.id);
+  t.is(asset.id, quote.assetId);
+  t.is(quote.exchangeId, exchange.id);
+  t.is(exchange.countryId, country.id);
 });
 
 test('Can load complex relations', async t => {
@@ -160,8 +160,8 @@ test('Can handle 1:1 circular dependencies', async t => {
 
   await a.save();
 
-  t.is(a.bBId, b.id);
-  t.is(b.aAId, a.id);
+  t.is(a.bId, b.id);
+  t.is(b.aId, a.id);
 });
 
 class C extends Model {
@@ -217,9 +217,9 @@ test('Can handle saving 3 way circular dependencies', async t => {
 
   await c.save();
 
-  t.is(c.dDId, d.id);
-  t.is(d.eEId, e.id);
-  t.is(e.cCId, c.id);
+  t.is(c.dId, d.id);
+  t.is(d.eId, e.id);
+  t.is(e.cId, c.id);
 });
 
 test('Can handle loading 3 way circular dependencies', async t => {

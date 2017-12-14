@@ -116,7 +116,7 @@ export default class Model {
         relation.model = models.get(definition.model);
       }
 
-      relation.key = `${lcfirst(relation.model.name)}${capitalize(property)}${capitalize(relation.foreignKey)}`;
+      relation.key = `${lcfirst(property)}${capitalize(relation.foreignKey)}`;
 
       namespace.addBelongsTo(relation);
       namespace.addSchemaProperty(relation.key, {
@@ -142,7 +142,7 @@ export default class Model {
         relation.model = models.get(definition.model);
       }
 
-      relation.key = `${lcfirst(this.name)}${capitalize(property)}${capitalize(relation.foreignKey)}`;
+      relation.key = `${lcfirst(this.name)}${capitalize(relation.foreignKey)}`;
 
       namespace.addHasMany(relation);
 
