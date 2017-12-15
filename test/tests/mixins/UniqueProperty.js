@@ -60,6 +60,8 @@ test('throws error when trying to create model with duplicate unique value and d
   });
   const error = await t.throws(duplicate.save());
   t.is(error.message, "'ChatUser.username' must be unique");
+  t.is(error.modelName, 'ChatUser');
+  t.is(error.propertyName, 'username');
   chatUsers = await ChatUser.filter({ name: 'Ralph' }).run();
   t.is(chatUsers.length, 1);
 });

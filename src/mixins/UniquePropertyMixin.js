@@ -3,6 +3,16 @@ import { capitalize } from '../util';
 
 const r = new Query();
 
+export class UniquenessViolationError extends Error {
+  constructor(modelName, propertyName) {
+    const message = `'${modelName}.${propertyName}' must be unique`;
+    super(message);
+
+    this.modelName = modelName;
+    this.propertyName = propertyName;
+  }
+}
+
 export default superclass =>
   class UniqueProperty extends superclass {
     static setup(namespace) {
@@ -53,7 +63,7 @@ export default superclass =>
               .run();
           })
         );
-        throw new Error(`'${record.constructor.name}.${uniqueProperties[errorIndex].property}' must be unique`);
+        throw new UniquenessViolationError(record.constructor.name, uniqueProperties[errorIndex].property);
       }
 
       await Promise.all(
