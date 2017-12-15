@@ -185,6 +185,7 @@ export default class Model {
         .join('__');
 
       namespace.addManyToMany(relation);
+
       Database.getNamespace(relation.model).addManyToMany(
         Object.assign({}, relation, {
           property: relation.foreignProperty,
@@ -605,21 +606,6 @@ export default class Model {
     });
   }
 
-  async saveManyToManyRelations(namespace, options) {
-    return namespace.forEachManyToManyAsync(async ({ property, key, tableName, primaryKey, modelNames, keys }) => {
-      await Promise.all(
-        this[property].map(instance => {
-          instance[key] = this[primaryKey];
-          return instance.save(
-            Object.assign({}, options, {
-              ROOT: false
-            })
-          );
-        })
-      );
-    });
-  }
-
   async save(options = {}) {
     const namespace = Database.getNamespace(this.constructor);
     const model = this;
@@ -668,7 +654,6 @@ export default class Model {
     // Save hasMany relations
     await this.saveHasOneRelations(namespace, options);
     await this.saveHasManyRelations(namespace, options);
-    await this.saveManyToManyRelations(namespace, options);
 
     options.STACK.delete(this);
 
