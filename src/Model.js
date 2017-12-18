@@ -220,9 +220,7 @@ export default class Model {
 
   static async createIndexes(namespace: Namespace) {
     log(`creating indexes for ${this.name}`);
-    await namespace.forEachIndexAsync(([name, definition]) => {
-      return Query.ensureIndex(this.name, definition);
-    });
+    await namespace.forEachIndexAsync(([name, definition]) => Query.ensureIndex(this.name, definition));
   }
 
   constructor(properties: Record) {
@@ -230,7 +228,7 @@ export default class Model {
     this.oldValues = {};
     this.defineProperties();
     this.defineRelations();
-    this.assign(properties);
+    this.assign(properties, true);
     this.pendingUpdate = {};
   }
 
@@ -483,7 +481,7 @@ export default class Model {
     });
   }
 
-  assign(properties) {
+  assign(properties, initial = false) {
     const namespace = Database.getNamespace(this.constructor);
 
     if (has(properties, 'id')) {
@@ -491,6 +489,8 @@ export default class Model {
     }
 
     namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
+      if (!initial && !has(properties, key)) return;
+
       let allowNull = false;
       let type;
       let value = properties[key];
@@ -711,10 +711,10 @@ export default class Model {
   }
 
   toJSON() {
-    let json = {
+    const json = {
       id: this.id
     };
-    let namespace = Database.getNamespace(this.constructor);
+    const namespace = Database.getNamespace(this.constructor);
 
     namespace.forEachSchemaProperty(([key, value]) => {
       json[key] = this[key];
