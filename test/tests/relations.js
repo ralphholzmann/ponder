@@ -357,11 +357,6 @@ test('Handles multiple many to many relations of the same model types', async t 
     username: 'ralph'
   });
 
-  const message1 = new Message({
-    text: 'This is a test',
-    user: user1
-  });
-
   const message2 = new Message({
     text: 'This is also a test',
     user: user2

@@ -1,7 +1,7 @@
 import test from 'ava';
 import { Model } from '../../../lib';
 import Database from '../../lib/database';
-import PrivateMixin from '../../../lib/mixins/PrivateMixin.js';
+import PrivateMixin from '../../../lib/mixins/PrivateMixin';
 
 class AppUser extends Model.with(PrivateMixin) {
   static schema = {

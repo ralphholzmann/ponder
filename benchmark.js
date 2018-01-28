@@ -5,7 +5,7 @@ const Model = require('./src/Model');
 const Database = require('./src/Database');
 const LIMIT = 1000;
 
-var ThinkyUser = thinky.createModel("User", {
+var ThinkyUser = thinky.createModel('User', {
   id: String,
   name: String,
   email: String
@@ -20,50 +20,48 @@ Database.register(OurUser);
 
 async function testThinky() {
   await thinky.dbReady();
-  console.log("testing thinky");
+  console.log('testing thinky');
   let chain = Promise.resolve();
 
   function saveNewUser() {
-    return (new ThinkyUser({
+    return new ThinkyUser({
       name: 'Ralph',
       email: 'ralph@holzmann.io'
-    })).save();
+    }).save();
   }
 
   let start = new Date();
   for (var i = 0; i < LIMIT; i++) {
-    chain = chain.then(saveNewUser)
+    chain = chain.then(saveNewUser);
   }
-  return chain.then(function () {
-    console.log('thinky time', (new Date()) - start);
+  return chain.then(function() {
+    console.log('thinky time', new Date() - start);
   });
-  
 }
 
 async function testOurs() {
   Database.config({
     db: 'test'
-  })
+  });
   await Database.connect();
 
-  console.log("testing ours");
+  console.log('testing ours');
   let chain = Promise.resolve();
 
   function saveNewUser() {
-    return (new OurUser({
+    return new OurUser({
       name: 'Ralph',
       email: 'ralph@holzmann.io'
-    })).save();
+    }).save();
   }
 
   let start = new Date();
   for (var i = 0; i < LIMIT; i++) {
-    chain = chain.then(saveNewUser)
+    chain = chain.then(saveNewUser);
   }
-  return chain.then(function () {
-    console.log('our time', (new Date()) - start);
+  return chain.then(function() {
+    console.log('our time', new Date() - start);
   });
-  
 }
 
-testThinky().then(testOurs)
+testThinky().then(testOurs);
