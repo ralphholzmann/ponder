@@ -2,13 +2,12 @@
 /* eslint-disable no-use-before-define */
 import rethinkdb from 'rethinkdb';
 import debug from 'debug';
+import { Set } from 'immutable';
 import ModelCursor from './ModelCursor';
 import { transforms, getInheritedPropertyList, REQL_METHODS, selectRow, assert } from './util';
 import Database from './Database';
 import type Model from './Model';
 import type Namespace from './Namespace';
-import { Set } from 'immutable';
-import util from 'util';
 
 const { hasOwnProperty } = Object.prototype;
 const log = debug('ponder:query');
@@ -110,10 +109,10 @@ function populateBelongsTo(
       return;
     }
 
-    query = query[method](result => {
-      return rethinkdb.branch(
+    query = query[method](result =>
+      rethinkdb.branch(
         result.ne(null),
-        result.merge(function() {
+        result.merge(() => {
           let subQuery = rethinkdb
             .table(model.name)
             .getAll(result.getField(key), {
@@ -157,8 +156,8 @@ function populateBelongsTo(
           };
         }),
         rethinkdb.expr(null)
-      );
-    });
+      )
+    );
   });
 
   return query;
@@ -171,7 +170,7 @@ function populateHasOne(
   populated: Set<Class<Model>>,
   method: string = 'map'
 ): Query {
-  namespace.forEach('hasOne', ({ property, key, foreignKey, model, table }) => {
+  namespace.forEach('hasOne', ({ property, key, foreignKey, model }) => {
     let nextRelations = null;
     if (relations === null || relations) {
       if (typeof relations === 'object' && relations !== null) {
@@ -184,10 +183,10 @@ function populateHasOne(
       return;
     }
 
-    query = query[method](result => {
-      return rethinkdb.branch(
+    query = query[method](result =>
+      rethinkdb.branch(
         result.ne(null),
-        result.merge(function() {
+        result.merge(() => {
           let subQuery = rethinkdb
             .table(model.name)
             .getAll(foreignKey, {
@@ -231,8 +230,8 @@ function populateHasOne(
           };
         }),
         rethinkdb.expr(null)
-      );
-    });
+      )
+    );
   });
 
   return query;
@@ -255,10 +254,10 @@ function populateHasMany(
       return;
     }
 
-    query = query[method](result => {
-      return rethinkdb.branch(
+    query = query[method](result =>
+      rethinkdb.branch(
         result.ne(null),
-        result.merge(function() {
+        result.merge(() => {
           let subQuery = rethinkdb
             .table(model.name)
             .getAll(result.getField('id'), {
@@ -278,8 +277,8 @@ function populateHasMany(
           };
         }),
         rethinkdb.expr(null)
-      );
-    });
+      )
+    );
   });
 
   return query;
@@ -301,19 +300,17 @@ function populateManyToMany(
     } else {
       return;
     }
-    query = query[method](result => {
-      return rethinkdb.branch(
+    query = query[method](result =>
+      rethinkdb.branch(
         result.ne(null),
-        result.merge(function() {
+        result.merge(() => {
           let subQuery = rethinkdb
             .table(tableName)
             .getAll(result.getField('id'), {
               index: myKey
             })
             .coerceTo('array')
-            .map(function(result) {
-              return rethinkdb.table(model.name).get(result.getField(theirKey));
-            });
+            .map(arrayResult => rethinkdb.table(model.name).get(arrayResult.getField(theirKey)));
 
           if (!populated.has(model)) {
             subQuery = populateBelongsTo(subQuery, Database.getNamespace(model), nextRelations, populated.add(model));
@@ -327,8 +324,8 @@ function populateManyToMany(
           };
         }),
         rethinkdb.expr(null)
-      );
-    });
+      )
+    );
   });
 
   return query;
@@ -413,7 +410,7 @@ Query.prototype.tapFilterRight = function tapFilterRight(args) {
   if (this.methods.find(method => INVALID_FILTER_METHODS.includes(method))) return this;
 
   let methodIndex;
-  for (let i = this.returns.length; i >= 0; i--) {
+  for (let i = this.returns.length; i >= 0; i -= 1) {
     if (FILTERABLE_TYPES.includes(this.returns[i])) {
       methodIndex = i;
       break;
@@ -457,9 +454,7 @@ Query.ensureIndex = (tableName, { name, properties, multi = false, geo = false }
     } else {
       assert(
         () => !!name,
-        `Index name missing for nested property ${properties[0]} on ${
-          tableName
-        } model. Please add a name to this index definition.`
+        `Index name missing for nested property ${properties[0]} on ${tableName} model. Please add a name to this index definition.`
       );
       args.push(name, selectRow(properties[0]), options);
     }
@@ -467,9 +462,9 @@ Query.ensureIndex = (tableName, { name, properties, multi = false, geo = false }
   } else {
     assert(
       () => !!name,
-      `Index name missing for compound index on properties ${JSON.stringify(properties)} on ${
-        tableName
-      } model. Please add a name to this index definition.`
+      `Index name missing for compound index on properties ${JSON.stringify(
+        properties
+      )} on ${tableName} model. Please add a name to this index definition.`
     );
     args.push(name, properties.map(selectRow), options);
   }

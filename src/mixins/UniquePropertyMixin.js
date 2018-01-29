@@ -32,9 +32,7 @@ export default superclass =>
     static async beforeSave(record, namespace) {
       const uniqueProperties = namespace
         .filterSchema('unique')
-        .filter(({ property }) => {
-          return record.isNew() || record.pendingUpdate[property];
-        })
+        .filter(({ property }) => record.isNew() || record.pendingUpdate[property])
         .map(({ property }) => ({
           property,
           tableName: `${record.constructor.name}_${property}_unique`,
@@ -56,7 +54,7 @@ export default superclass =>
         await Promise.all(
           result.filter(({ errors }) => errors === 0).map((item, index) => {
             const { tableName, id } = uniqueProperties[index];
-            r
+            return r
               .table(tableName)
               .get(id)
               .delete()

@@ -1,5 +1,4 @@
 import test from 'ava';
-import r from 'rethinkdb';
 import { Model, Point } from '../../lib';
 import Database from '../lib/database';
 
@@ -372,11 +371,11 @@ test('Only includes schema properties when serializing', async t => {
     schemaKeys.push(key);
     schemaKeys.push(property);
   });
-  namespace.forEachHasMany(({ key }) => {
+  namespace.forEachHasMany(({ key, property }) => {
     schemaKeys.push(key);
     schemaKeys.push(property);
   });
-  namespace.forEachManyToMany(({ key }) => {
+  namespace.forEachManyToMany(({ key, property }) => {
     schemaKeys.push(key);
     schemaKeys.push(property);
   });

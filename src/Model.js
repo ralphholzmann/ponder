@@ -220,7 +220,7 @@ export default class Model {
 
   static async createIndexes(namespace: Namespace) {
     log(`creating indexes for ${this.name}`);
-    await namespace.forEachIndexAsync(([name, definition]) => Query.ensureIndex(this.name, definition));
+    await namespace.forEachIndexAsync(([name, definition]) => Query.ensureIndex(name, definition));
   }
 
   constructor(properties: Record) {
@@ -259,9 +259,8 @@ export default class Model {
       set: (target, prop, value) => {
         if (target.isSealed() && prop !== 'sealed') {
           throw new Error(
-            `Cannot set property ${prop} on ${this.constructor.name}.${
-              property
-            }. Relations are read only. Did you mean to call addRelation or removeRelation?`
+            `Cannot set property ${prop} on ${this.constructor
+              .name}.${property}. Relations are read only. Did you mean to call addRelation or removeRelation?`
           );
         }
         target[prop] = value;
@@ -672,7 +671,7 @@ export default class Model {
     const namespace = Database.getNamespace(this.constructor);
     const payload = {};
 
-    await namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
+    await namespace.forEachSchemaProperty(([key: string]) => {
       payload[key] = this[key];
     });
 
@@ -716,7 +715,7 @@ export default class Model {
     };
     const namespace = Database.getNamespace(this.constructor);
 
-    namespace.forEachSchemaProperty(([key, value]) => {
+    namespace.forEachSchemaProperty(([key]) => {
       json[key] = this[key];
     });
 
