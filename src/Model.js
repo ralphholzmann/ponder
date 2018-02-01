@@ -18,6 +18,7 @@ export default class Model {
   static indexes: Array<Object>;
   static databases = [];
   static name: string;
+  static initialized = false;
 
   id: string;
 
@@ -26,11 +27,14 @@ export default class Model {
   }
 
   static async initialize(namespace: Namespace, models: Map<string, Class<Model>>): Promise<void> {
-    log(`initializing ${this.name}`);
-    await this.applyMixins(namespace);
-    await Query.ensureTable(this.name);
-    await this.setupRelations(namespace, models);
-    log(`finished initializing ${this.name}`);
+    if (!this.initialized) {
+      this.initialized = true;
+      log(`initializing ${this.name}`);
+      await this.applyMixins(namespace);
+      await Query.ensureTable(this.name);
+      await this.setupRelations(namespace, models);
+      log(`finished initializing ${this.name}`);
+    }
   }
 
   static async applyMixins(namespace: Namespace): void {
