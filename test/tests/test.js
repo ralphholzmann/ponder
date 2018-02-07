@@ -393,3 +393,21 @@ test('Serializes hasMany relations correctly', async t => {
   const json = JSON.parse(JSON.stringify(era));
   t.true(Array.isArray(json.places));
 });
+
+test('`reload` method updates model from the database', async t => {
+  const weapon = new Weapon({
+    name: 'Rainbow Sword',
+    type: 'sword',
+    attack: 200
+  });
+
+  await weapon.save();
+  const weaponCopy = await Weapon.get(weapon.id).run();
+
+  weaponCopy.attack = 210;
+  await weaponCopy.save();
+
+  t.is(weapon.attack, 200);
+  await weapon.reload();
+  t.is(weapon.attack, 210);
+});

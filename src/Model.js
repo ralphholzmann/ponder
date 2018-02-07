@@ -713,6 +713,16 @@ export default class Model {
     this.assign(plucked);
   }
 
+  async reload() {
+    assert(() => !this.isNew(), "`reload` cannot be called on an instance that hasn't been saved yet");
+    const r = new Query();
+    const properties = await r
+      .table(this.constructor.name)
+      .get(this.id)
+      .run();
+    this.assign(properties);
+  }
+
   toJSON() {
     const json = {
       id: this.id
