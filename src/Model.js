@@ -19,6 +19,7 @@ export default class Model {
   static databases = [];
   static name: string;
   static initialized = false;
+  static indexesCreated = false;
 
   id: string;
 
@@ -223,8 +224,11 @@ export default class Model {
   }
 
   static async createIndexes(namespace: Namespace) {
-    log(`creating indexes for ${this.name}`);
-    await namespace.forEachIndexAsync(([name, definition]) => Query.ensureIndex(this.name, definition));
+    if (!this.indexesCreated) {
+      this.indexesCreated = true;
+      log(`creating indexes for ${this.name}`);
+      await namespace.forEachIndexAsync(([name, definition]) => Query.ensureIndex(this.name, definition));
+    }
   }
 
   constructor(properties: Record) {
