@@ -224,7 +224,7 @@ export default class Model {
 
   static async createIndexes(namespace: Namespace) {
     log(`creating indexes for ${this.name}`);
-    await namespace.forEachIndexAsync(([name, definition]) => Query.ensureIndex(name, definition));
+    await namespace.forEachIndexAsync(([name, definition]) => Query.ensureIndex(this.name, definition));
   }
 
   constructor(properties: Record) {
