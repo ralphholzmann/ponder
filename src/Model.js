@@ -706,12 +706,12 @@ export default class Model {
     return this.id === undefined;
   }
 
-  async populate() {
+  async populate(relations) {
     assert(() => !this.isNew(), "`populate` cannot be called on an instance that hasn't been saved yet");
     const namespace = Database.getNamespace(this.constructor);
     const plucked = await this.constructor
       .get(this.id)
-      .populate()
+      .populate(relations)
       .pluck(...namespace.getRelationProperties())
       .run();
     this.assign(plucked);

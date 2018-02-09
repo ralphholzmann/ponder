@@ -4,7 +4,7 @@ import rethinkdb from 'rethinkdb';
 import debug from 'debug';
 import { Set } from 'immutable';
 import ModelCursor from './ModelCursor';
-import { transforms, getInheritedPropertyList, REQL_METHODS, selectRow, assert } from './util';
+import { transforms, getInheritedPropertyList, REQL_METHODS, selectRow, assert, has } from './util';
 import Database from './Database';
 import type Model from './Model';
 import type Namespace from './Namespace';
@@ -46,9 +46,9 @@ Query.prototype.run = async function run(options = {}) {
 
   const connection = await Database.getConnection();
   const rethinkQuery = query.toQuery();
-  if (options.log) {
-    console.log(rethinkQuery.toString());
-  }
+  // if (options.log) {
+  console.log(rethinkQuery.toString());
+  // }
   const response = await rethinkQuery.run(connection);
   return this.processResponse(response);
 };
@@ -81,6 +81,8 @@ Query.prototype.populate = function populate(relations = null): rethinkdb.Operat
   const namespace = Database.getNamespace(this.model);
   const populated: Set<Class<Model>> = new Set().add(this.model);
 
+  console.log('RELATIONS TO LOAD', relations);
+
   query = populateBelongsTo(query, namespace, relations, populated, method);
   query = populateHasOne(query, namespace, relations, populated, method);
   query = populateHasMany(query, namespace, relations, populated, method);
@@ -88,6 +90,30 @@ Query.prototype.populate = function populate(relations = null): rethinkdb.Operat
 
   return query;
 };
+
+function shouldLoadRelation(relations, property) {
+  if (typeof relations === 'undefined' || relations === false) {
+    return false;
+  } else if (relations === null || has(relations, property)) {
+    return true;
+  }
+  return false;
+}
+
+function getNextRelations(relations, property) {
+  if (relations === null) {
+    return null;
+  } else if (relations === true) {
+    return false;
+  } else if (relations !== false && typeof relations !== 'undefined' && has(relations, property)) {
+    if (relations[property] === true) {
+      return false;
+    }
+    return relations[property];
+  }
+
+  return false;
+}
 
 function populateBelongsTo(
   query: Query,
@@ -97,17 +123,8 @@ function populateBelongsTo(
   method: string = 'map'
 ): Query {
   namespace.forEach('belongsTo', ({ property, key, foreignKey, model }) => {
-    let nextRelations = null;
-    if (relations === null || relations) {
-      if (typeof relations === 'object' && relations !== null) {
-        nextRelations = relations[property];
-      }
-      if (relations === true) {
-        return;
-      }
-    } else {
-      return;
-    }
+    if (!shouldLoadRelation(relations, property)) return;
+    const nextRelations = getNextRelations(relations, property);
 
     query = query[method](result =>
       rethinkdb.branch(
@@ -171,17 +188,8 @@ function populateHasOne(
   method: string = 'map'
 ): Query {
   namespace.forEach('hasOne', ({ property, key, foreignKey, model }) => {
-    let nextRelations = null;
-    if (relations === null || relations) {
-      if (typeof relations === 'object' && relations !== null) {
-        nextRelations = relations[property];
-      }
-      if (relations === true) {
-        return;
-      }
-    } else {
-      return;
-    }
+    if (!shouldLoadRelation(relations, property)) return;
+    const nextRelations = getNextRelations(relations, property);
 
     query = query[method](result =>
       rethinkdb.branch(
@@ -245,14 +253,9 @@ function populateHasMany(
   method: string = 'map'
 ): Query {
   namespace.forEach('hasMany', ({ property, key, model }) => {
-    let nextRelations = null;
-    if (relations === null || relations) {
-      if (typeof relations === 'object' && relations !== null) {
-        nextRelations = relations[property];
-      }
-    } else {
-      return;
-    }
+    console.log('has many should load?', relations, property, shouldLoadRelation(relations, property));
+    if (!shouldLoadRelation(relations, property)) return;
+    const nextRelations = getNextRelations(relations, property);
 
     query = query[method](result =>
       rethinkdb.branch(
@@ -292,14 +295,16 @@ function populateManyToMany(
   method: string = 'map'
 ): Query {
   namespace.forEach('manyToMany', ({ property, myKey, theirKey, model, tableName }) => {
-    let nextRelations = null;
-    if (relations === null || relations) {
-      if (typeof relations === 'object' && relations !== null) {
-        nextRelations = relations[property];
-      }
-    } else {
-      return;
-    }
+    console.log(
+      'm2m',
+      relations,
+      property,
+      shouldLoadRelation(relations, property),
+      getNextRelations(relations, property)
+    );
+    if (!shouldLoadRelation(relations, property)) return;
+    const nextRelations = getNextRelations(relations, property);
+
     query = query[method](result =>
       rethinkdb.branch(
         result.ne(null),
