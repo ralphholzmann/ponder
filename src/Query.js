@@ -4,7 +4,7 @@ import rethinkdb from 'rethinkdb';
 import debug from 'debug';
 import { Set } from 'immutable';
 import ModelCursor from './ModelCursor';
-import { transforms, getInheritedPropertyList, REQL_METHODS, selectRow, assert } from './util';
+import { transforms, getInheritedPropertyList, REQL_METHODS, selectRow, assert, has } from './util';
 import Database from './Database';
 import type Model from './Model';
 import type Namespace from './Namespace';
@@ -89,6 +89,30 @@ Query.prototype.populate = function populate(relations = null): rethinkdb.Operat
   return query;
 };
 
+function shouldLoadRelation(relations, property) {
+  if (typeof relations === 'undefined' || relations === false) {
+    return false;
+  } else if (relations === null || has(relations, property)) {
+    return true;
+  }
+  return false;
+}
+
+function getNextRelations(relations, property) {
+  if (relations === null) {
+    return null;
+  } else if (relations === true) {
+    return false;
+  } else if (relations !== false && typeof relations !== 'undefined' && has(relations, property)) {
+    if (relations[property] === true) {
+      return false;
+    }
+    return relations[property];
+  }
+
+  return false;
+}
+
 function populateBelongsTo(
   query: Query,
   namespace: Namespace,
@@ -97,17 +121,8 @@ function populateBelongsTo(
   method: string = 'map'
 ): Query {
   namespace.forEach('belongsTo', ({ property, key, foreignKey, model }) => {
-    let nextRelations = null;
-    if (relations === null || relations) {
-      if (typeof relations === 'object' && relations !== null) {
-        nextRelations = relations[property];
-      }
-      if (relations === true) {
-        return;
-      }
-    } else {
-      return;
-    }
+    if (!shouldLoadRelation(relations, property)) return;
+    const nextRelations = getNextRelations(relations, property);
 
     query = query[method](result =>
       rethinkdb.branch(
@@ -171,17 +186,8 @@ function populateHasOne(
   method: string = 'map'
 ): Query {
   namespace.forEach('hasOne', ({ property, key, foreignKey, model }) => {
-    let nextRelations = null;
-    if (relations === null || relations) {
-      if (typeof relations === 'object' && relations !== null) {
-        nextRelations = relations[property];
-      }
-      if (relations === true) {
-        return;
-      }
-    } else {
-      return;
-    }
+    if (!shouldLoadRelation(relations, property)) return;
+    const nextRelations = getNextRelations(relations, property);
 
     query = query[method](result =>
       rethinkdb.branch(
@@ -245,14 +251,8 @@ function populateHasMany(
   method: string = 'map'
 ): Query {
   namespace.forEach('hasMany', ({ property, key, model }) => {
-    let nextRelations = null;
-    if (relations === null || relations) {
-      if (typeof relations === 'object' && relations !== null) {
-        nextRelations = relations[property];
-      }
-    } else {
-      return;
-    }
+    if (!shouldLoadRelation(relations, property)) return;
+    const nextRelations = getNextRelations(relations, property);
 
     query = query[method](result =>
       rethinkdb.branch(
@@ -292,14 +292,9 @@ function populateManyToMany(
   method: string = 'map'
 ): Query {
   namespace.forEach('manyToMany', ({ property, myKey, theirKey, model, tableName }) => {
-    let nextRelations = null;
-    if (relations === null || relations) {
-      if (typeof relations === 'object' && relations !== null) {
-        nextRelations = relations[property];
-      }
-    } else {
-      return;
-    }
+    if (!shouldLoadRelation(relations, property)) return;
+    const nextRelations = getNextRelations(relations, property);
+
     query = query[method](result =>
       rethinkdb.branch(
         result.ne(null),
@@ -454,7 +449,9 @@ Query.ensureIndex = (tableName, { name, properties, multi = false, geo = false }
     } else {
       assert(
         () => !!name,
-        `Index name missing for nested property ${properties[0]} on ${tableName} model. Please add a name to this index definition.`
+        `Index name missing for nested property ${properties[0]} on ${
+          tableName
+        } model. Please add a name to this index definition.`
       );
       args.push(name, selectRow(properties[0]), options);
     }
@@ -462,9 +459,9 @@ Query.ensureIndex = (tableName, { name, properties, multi = false, geo = false }
   } else {
     assert(
       () => !!name,
-      `Index name missing for compound index on properties ${JSON.stringify(
-        properties
-      )} on ${tableName} model. Please add a name to this index definition.`
+      `Index name missing for compound index on properties ${JSON.stringify(properties)} on ${
+        tableName
+      } model. Please add a name to this index definition.`
     );
     args.push(name, properties.map(selectRow), options);
   }
