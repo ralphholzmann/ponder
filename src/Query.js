@@ -46,9 +46,9 @@ Query.prototype.run = async function run(options = {}) {
 
   const connection = await Database.getConnection();
   const rethinkQuery = query.toQuery();
-  // if (options.log) {
-  console.log(rethinkQuery.toString());
-  // }
+  if (options.log) {
+    console.log(rethinkQuery.toString());
+  }
   const response = await rethinkQuery.run(connection);
   return this.processResponse(response);
 };
@@ -80,8 +80,6 @@ Query.prototype.populate = function populate(relations = null): rethinkdb.Operat
   const method = query.returns.includes('singleSelection') ? 'do' : 'map';
   const namespace = Database.getNamespace(this.model);
   const populated: Set<Class<Model>> = new Set().add(this.model);
-
-  console.log('RELATIONS TO LOAD', relations);
 
   query = populateBelongsTo(query, namespace, relations, populated, method);
   query = populateHasOne(query, namespace, relations, populated, method);
@@ -253,7 +251,6 @@ function populateHasMany(
   method: string = 'map'
 ): Query {
   namespace.forEach('hasMany', ({ property, key, model }) => {
-    console.log('has many should load?', relations, property, shouldLoadRelation(relations, property));
     if (!shouldLoadRelation(relations, property)) return;
     const nextRelations = getNextRelations(relations, property);
 
@@ -295,13 +292,6 @@ function populateManyToMany(
   method: string = 'map'
 ): Query {
   namespace.forEach('manyToMany', ({ property, myKey, theirKey, model, tableName }) => {
-    console.log(
-      'm2m',
-      relations,
-      property,
-      shouldLoadRelation(relations, property),
-      getNextRelations(relations, property)
-    );
     if (!shouldLoadRelation(relations, property)) return;
     const nextRelations = getNextRelations(relations, property);
 
@@ -459,7 +449,9 @@ Query.ensureIndex = (tableName, { name, properties, multi = false, geo = false }
     } else {
       assert(
         () => !!name,
-        `Index name missing for nested property ${properties[0]} on ${tableName} model. Please add a name to this index definition.`
+        `Index name missing for nested property ${properties[0]} on ${
+          tableName
+        } model. Please add a name to this index definition.`
       );
       args.push(name, selectRow(properties[0]), options);
     }
@@ -467,9 +459,9 @@ Query.ensureIndex = (tableName, { name, properties, multi = false, geo = false }
   } else {
     assert(
       () => !!name,
-      `Index name missing for compound index on properties ${JSON.stringify(
-        properties
-      )} on ${tableName} model. Please add a name to this index definition.`
+      `Index name missing for compound index on properties ${JSON.stringify(properties)} on ${
+        tableName
+      } model. Please add a name to this index definition.`
     );
     args.push(name, properties.map(selectRow), options);
   }
