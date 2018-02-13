@@ -160,8 +160,16 @@ test('Can handle 1:1 circular dependencies', async t => {
 
   await a.save();
 
-  t.is(a.bId, b.id);
-  t.is(b.aId, a.id);
+  const [aCopy] = await A.filter({
+    name: 'model a'
+  }).run();
+
+  const [bCopy] = await B.filter({
+    name: 'model b'
+  }).run();
+
+  t.is(aCopy.bId, b.id);
+  t.is(bCopy.aId, a.id);
 });
 
 class C extends Model {
@@ -217,9 +225,21 @@ test('Can handle saving 3 way circular dependencies', async t => {
 
   await c.save();
 
-  t.is(c.dId, d.id);
-  t.is(d.eId, e.id);
-  t.is(e.cId, c.id);
+  const [cCopy] = await C.filter({
+    name: 'model c'
+  }).run();
+
+  const [dCopy] = await D.filter({
+    name: 'model d'
+  }).run();
+
+  const [eCopy] = await E.filter({
+    name: 'model e'
+  }).run();
+
+  t.is(cCopy.dId, d.id);
+  t.is(dCopy.eId, e.id);
+  t.is(eCopy.cId, c.id);
 });
 
 test('Can handle loading 3 way circular dependencies', async t => {
@@ -231,8 +251,7 @@ test('Can handle loading 3 way circular dependencies', async t => {
 
   t.is(c.dId, c.d.id);
   t.is(c.d.eId, c.d.e.id);
-  t.is(c.d.e.cId, c.d.e.c.id);
-  t.truthy(c.d.e);
+  t.is(c.d.e.c, c);
 });
 
 test('Can handle serializing circular dependencies', async t => {
@@ -243,9 +262,6 @@ test('Can handle serializing circular dependencies', async t => {
     .run();
 
   const payload = JSON.parse(JSON.stringify(c));
-
-  console.log(c);
-  console.log(payload);
 
   t.truthy(payload.d.e);
 });
