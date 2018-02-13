@@ -267,8 +267,9 @@ export default class Model {
       set: (target, prop, value) => {
         if (target.isSealed() && prop !== 'sealed') {
           throw new Error(
-            `Cannot set property ${prop} on ${this.constructor
-              .name}.${property}. Relations are read only. Did you mean to call addRelation or removeRelation?`
+            `Cannot set property ${prop} on ${this.constructor.name}.${
+              property
+            }. Relations are read only. Did you mean to call addRelation or removeRelation?`
           );
         }
         target[prop] = value;
@@ -488,7 +489,7 @@ export default class Model {
     });
   }
 
-  assign(properties, initial = false, instances) {
+  assign(properties, initial = false, instances = new Map()) {
     const namespace = Database.getNamespace(this.constructor);
 
     if (has(properties, 'id')) {
@@ -737,35 +738,33 @@ export default class Model {
     this.assign(properties);
   }
 
-  serialize() {
+  serialize(models = new Set()) {
     const json = {
       id: this.id
     };
     const namespace = Database.getNamespace(this.constructor);
 
+    const iterator = ({ key, property }) => {
+      const memoKey = `${this.constructor.name}${property}`;
+      if (!models.has(memoKey)) {
+        models.add(memoKey);
+        json[key] = this[key];
+        if (Array.isArray(this[property])) {
+          json[property] = this[property].map(instance => instance.serialize(models));
+        } else {
+          json[property] = this[property].serialize(models);
+        }
+      }
+    };
+
     namespace.forEachSchemaProperty(([key]) => {
       json[key] = this[key];
     });
 
-    namespace.forEachBelongsTo(({ key, property }) => {
-      json[key] = this[key];
-      json[property] = this[property];
-    });
-
-    namespace.forEachHasOne(({ key, property }) => {
-      json[key] = this[key];
-      json[property] = this[property];
-    });
-
-    namespace.forEachHasMany(({ key, property }) => {
-      json[key] = this[key];
-      json[property] = this[property];
-    });
-
-    namespace.forEachManyToMany(({ key, property }) => {
-      json[key] = this[key];
-      json[property] = this[property];
-    });
+    namespace.forEachBelongsTo(iterator);
+    namespace.forEachHasOne(iterator);
+    namespace.forEachHasMany(iterator);
+    namespace.forEachManyToMany(iterator);
 
     return json;
   }
