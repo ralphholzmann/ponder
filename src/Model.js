@@ -231,12 +231,12 @@ export default class Model {
     }
   }
 
-  constructor(properties: Record) {
+  constructor(properties: Record, instances = new Map()) {
     this.pendingUpdate = {};
     this.oldValues = {};
     this.defineProperties();
     this.defineRelations();
-    this.assign(properties, true);
+    this.assign(properties, true, instances);
     this.pendingUpdate = {};
   }
 
@@ -267,8 +267,9 @@ export default class Model {
       set: (target, prop, value) => {
         if (target.isSealed() && prop !== 'sealed') {
           throw new Error(
-            `Cannot set property ${prop} on ${this.constructor
-              .name}.${property}. Relations are read only. Did you mean to call addRelation or removeRelation?`
+            `Cannot set property ${prop} on ${this.constructor.name}.${
+              property
+            }. Relations are read only. Did you mean to call addRelation or removeRelation?`
           );
         }
         target[prop] = value;
@@ -488,11 +489,12 @@ export default class Model {
     });
   }
 
-  assign(properties, initial = false) {
+  assign(properties, initial = false, instances = new Map()) {
     const namespace = Database.getNamespace(this.constructor);
 
     if (has(properties, 'id')) {
       this.id = properties.id;
+      instances.set(`${this.constructor.name}${this.id}`, this);
     }
 
     namespace.forEachSchemaProperty(([key: string, definition: Object]) => {
@@ -537,27 +539,29 @@ export default class Model {
       }
     });
 
-    namespace.forEachBelongsTo(({ property, model }) => {
+    namespace.forEachBelongsTo(({ property, model, key }) => {
       if (has(properties, property) && properties[property] !== null) {
-        this[property] = new model(properties[property]);
+        this[property] = new model(properties[property], instances);
+      } else if (properties[key] && !properties[property] && instances.has(`${model.name}${properties[key]}`)) {
+        this[property] = instances.get(`${model.name}${properties[key]}`);
       }
     });
 
     namespace.forEachHasOne(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
-        this[property] = new model(properties[property]);
+        this[property] = new model(properties[property], instances);
       }
     });
 
     namespace.forEachHasMany(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
-        this[property] = properties[property].map(record => new model(record));
+        this[property] = properties[property].map(record => new model(record, instances));
       }
     });
 
     namespace.forEachManyToMany(({ property, model }) => {
       if (has(properties, property) && properties[property] !== null) {
-        this[property] = properties[property].map(record => new model(record));
+        this[property] = properties[property].map(record => new model(record, instances));
       }
     });
   }
@@ -567,9 +571,13 @@ export default class Model {
       if (this[property] instanceof model) {
         if (options.STACK.has(this[property])) {
           // Circular reference
-          options.PENDING.push(async () => {
+          options.PENDING.push(() => {
             this[key] = this[property][foreignKey];
-            await this.save();
+            return this.save(
+              Object.assign({}, options, {
+                ROOT: false
+              })
+            );
           });
         } else {
           await this[property].save(
@@ -666,7 +674,10 @@ export default class Model {
 
     // Fix up circular references
     if (options.ROOT && options.PENDING) {
-      options.PENDING.forEach(update => update());
+      await options.PENDING.reduce((chain, update) => {
+        chain = chain.then(update);
+        return chain;
+      }, Promise.resolve());
     }
 
     // afterSave hooks
@@ -727,31 +738,38 @@ export default class Model {
     this.assign(properties);
   }
 
-  toJSON() {
+  serialize(models = new Set()) {
     const json = {
       id: this.id
     };
     const namespace = Database.getNamespace(this.constructor);
 
+    const iterator = ({ key, property }) => {
+      const memoKey = `${this.constructor.name}${property}`;
+      if (!models.has(memoKey)) {
+        models.add(memoKey);
+        json[key] = this[key];
+        if (Array.isArray(this[property])) {
+          json[property] = this[property].map(instance => instance.serialize(models));
+        } else {
+          json[property] = this[property].serialize(models);
+        }
+      }
+    };
+
     namespace.forEachSchemaProperty(([key]) => {
       json[key] = this[key];
     });
 
-    namespace.forEachHasOne(({ key, property }) => {
-      json[key] = this[key];
-      json[property] = this[property];
-    });
-
-    namespace.forEachHasMany(({ key, property }) => {
-      json[key] = this[key];
-      json[property] = this[property];
-    });
-
-    namespace.forEachManyToMany(({ key, property }) => {
-      json[key] = this[key];
-      json[property] = this[property];
-    });
+    namespace.forEachBelongsTo(iterator);
+    namespace.forEachHasOne(iterator);
+    namespace.forEachHasMany(iterator);
+    namespace.forEachManyToMany(iterator);
 
     return json;
+  }
+
+  toJSON() {
+    return this.serialize();
   }
 }

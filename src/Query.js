@@ -8,6 +8,7 @@ import { transforms, getInheritedPropertyList, REQL_METHODS, selectRow, assert, 
 import Database from './Database';
 import type Model from './Model';
 import type Namespace from './Namespace';
+import util from 'util';
 
 const { hasOwnProperty } = Object.prototype;
 const log = debug('ponder:query');
@@ -124,19 +125,19 @@ function populateBelongsTo(
     if (!shouldLoadRelation(relations, property)) return;
     const nextRelations = getNextRelations(relations, property);
 
-    query = query[method](result =>
-      rethinkdb.branch(
-        result.ne(null),
-        result.merge(() => {
-          let subQuery = rethinkdb
-            .table(model.name)
-            .getAll(result.getField(key), {
-              index: foreignKey
-            })
-            .nth(0)
-            .default(null);
+    if (!populated.has(model)) {
+      query = query[method](result =>
+        rethinkdb.branch(
+          result.ne(null),
+          result.merge(() => {
+            let subQuery = rethinkdb
+              .table(model.name)
+              .getAll(result.getField(key), {
+                index: foreignKey
+              })
+              .nth(0)
+              .default(null);
 
-          if (!populated.has(model)) {
             subQuery = populateBelongsTo(
               subQuery,
               Database.getNamespace(model),
@@ -165,14 +166,14 @@ function populateBelongsTo(
               populated.add(model),
               'do'
             );
-          }
-          return {
-            [property]: subQuery
-          };
-        }),
-        rethinkdb.expr(null)
-      )
-    );
+            return {
+              [property]: subQuery
+            };
+          }),
+          rethinkdb.expr(null)
+        )
+      );
+    }
   });
 
   return query;
