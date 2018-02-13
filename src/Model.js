@@ -267,8 +267,9 @@ export default class Model {
       set: (target, prop, value) => {
         if (target.isSealed() && prop !== 'sealed') {
           throw new Error(
-            `Cannot set property ${prop} on ${this.constructor
-              .name}.${property}. Relations are read only. Did you mean to call addRelation or removeRelation?`
+            `Cannot set property ${prop} on ${this.constructor.name}.${
+              property
+            }. Relations are read only. Did you mean to call addRelation or removeRelation?`
           );
         }
         target[prop] = value;
@@ -727,7 +728,7 @@ export default class Model {
     this.assign(properties);
   }
 
-  toJSON() {
+  serialize() {
     const json = {
       id: this.id
     };
@@ -735,6 +736,11 @@ export default class Model {
 
     namespace.forEachSchemaProperty(([key]) => {
       json[key] = this[key];
+    });
+
+    namespace.forEachBelongsTo(({ key, property }) => {
+      json[key] = this[key];
+      json[property] = this[property];
     });
 
     namespace.forEachHasOne(({ key, property }) => {
@@ -753,5 +759,9 @@ export default class Model {
     });
 
     return json;
+  }
+
+  toJSON() {
+    return this.serialize();
   }
 }

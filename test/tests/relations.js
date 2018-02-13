@@ -229,7 +229,25 @@ test('Can handle loading 3 way circular dependencies', async t => {
     .populate()
     .run();
 
+  t.is(c.dId, c.d.id);
+  t.is(c.d.eId, c.d.e.id);
+  t.is(c.d.e.cId, c.d.e.c.id);
   t.truthy(c.d.e);
+});
+
+test('Can handle serializing circular dependencies', async t => {
+  const [c] = await C.filter({
+    name: 'model c'
+  })
+    .populate()
+    .run();
+
+  const payload = JSON.parse(JSON.stringify(c));
+
+  console.log(c);
+  console.log(payload);
+
+  t.truthy(payload.d.e);
 });
 
 class Post extends Model {
