@@ -751,7 +751,7 @@ export default class Model {
         json[key] = this[key];
         if (Array.isArray(this[property])) {
           json[property] = this[property].map(instance => instance.serialize(models));
-        } else {
+        } else if (this[property] instanceof Model) {
           json[property] = this[property].serialize(models);
         }
       }
